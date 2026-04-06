@@ -33,13 +33,7 @@ type LoginResponse struct {
 
 func (s *AuthService) Login(req *LoginRequest) (*LoginResponse, error) {
 	user, err := s.userRepo.FindByUsername(req.Username)
-	if err != nil {
-		if errors.Is(err, repository.ErrDatabaseNotConnected) {
-			return nil, errors.New("系统初始化中，请稍后重试")
-		}
-		return nil, errors.New("用户名或密码错误")
-	}
-	if user == nil {
+	if err != nil || user == nil {
 		return nil, errors.New("用户名或密码错误")
 	}
 

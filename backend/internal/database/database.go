@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"nginxops/internal/config"
-	"time"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -32,29 +31,6 @@ func InitDB() error {
 	return nil
 }
 
-// InitDBWithRetry 带重试的数据库初始化
-func InitDBWithRetry(maxRetries int, retryInterval time.Duration) error {
-	var lastErr error
-	for i := 0; i < maxRetries; i++ {
-		err := InitDB()
-		if err == nil {
-			return nil
-		}
-		lastErr = err
-		log.Printf("Database connection attempt %d/%d failed: %v", i+1, maxRetries, err)
-		if i < maxRetries-1 {
-			log.Printf("Retrying in %v...", retryInterval)
-			time.Sleep(retryInterval)
-		}
-	}
-	return fmt.Errorf("failed to connect database after %d retries: %w", maxRetries, lastErr)
-}
-
 func GetDB() *gorm.DB {
 	return DB
-}
-
-// IsConnected 检查数据库是否已连接
-func IsConnected() bool {
-	return DB != nil
 }
