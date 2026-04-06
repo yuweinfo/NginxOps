@@ -79,3 +79,8 @@ func (s *DnsProviderService) SetDefault(id uint) error {
 	provider.IsDefault = true
 	return s.repo.Update(provider)
 }
+
+// GetDefault 获取默认DNS供应商
+func (s *DnsProviderService) GetDefault() (*model.DnsProvider, error) {
+	return s.repo.FindDefault()
+}

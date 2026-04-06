@@ -562,7 +562,7 @@ export default function Dashboard() {
                         style={{ width: `${item.percent}%` }}
                       />
                     </div>
-                    <span className="text-muted-foreground w-10 text-right">{item.percent}%</span>
+                    <span className="text-muted-foreground w-12 text-right">{item.percent.toFixed(2)}%</span>
                   </div>
                 ))}
               </div>

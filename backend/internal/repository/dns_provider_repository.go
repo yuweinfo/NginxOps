@@ -42,3 +42,12 @@ func (r *DnsProviderRepository) Delete(id uint) error {
 func (r *DnsProviderRepository) ClearDefault() error {
 	return database.DB.Model(&model.DnsProvider{}).Where("is_default = ?", true).Update("is_default", false).Error
 }
+
+// FindDefault 查找默认DNS供应商
+func (r *DnsProviderRepository) FindDefault() (*model.DnsProvider, error) {
+	var provider model.DnsProvider
+	if err := database.DB.Where("is_default = ?", true).First(&provider).Error; err != nil {
+		return nil, err
+	}
+	return &provider, nil
+}

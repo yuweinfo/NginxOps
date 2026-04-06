@@ -70,6 +70,7 @@ func main() {
 	geoHandler := handler.NewGeoIpHandler()
 	setupHandler := handler.NewSetupHandler()
 	dbTestHandler := handler.NewDBTestHandler()
+	networkHandler := handler.NewNetworkHandler()
 
 	// WebSocket Handler
 	logWsHandler := websocket.NewLogWebSocketHandler()
@@ -200,6 +201,13 @@ func main() {
 			dns.PUT("/:id", dnsHandler.Update)
 			dns.DELETE("/:id", dnsHandler.Delete)
 			dns.PUT("/:id/default", dnsHandler.SetDefault)
+		}
+
+		// 网络信息
+		network := protected.Group("/network")
+		{
+			network.GET("/info", networkHandler.GetNetworkInfo)
+			network.POST("/dns-record", networkHandler.CreateDNSRecord)
 		}
 	}
 
