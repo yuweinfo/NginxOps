@@ -29,6 +29,8 @@ main:
   push:
     - imports:
         - https://cnb.cool/yuweinfo/config/-/blob/main/env.github.yml
+      services:
+        - docker
       stages:
         - name: docker build
           script: docker build -t ${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:latest .
