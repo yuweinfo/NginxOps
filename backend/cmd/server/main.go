@@ -9,7 +9,6 @@ import (
 	"nginxops/internal/service"
 	"nginxops/internal/websocket"
 	"nginxops/pkg/response"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,10 +29,9 @@ func main() {
 			log.Fatalf("Failed to load config: %v", err)
 		}
 
-		// 初始化数据库（带重试，等待 PostgreSQL 就绪）
-		// 最多重试 30 次，每次间隔 2 秒，总共等待 60 秒
-		if err := database.InitDBWithRetry(30, 2*time.Second); err != nil {
-			log.Fatalf("Failed to connect database after retries: %v", err)
+		// 初始化数据库
+		if err := database.InitDB(); err != nil {
+			log.Fatalf("Failed to connect database: %v", err)
 		}
 
 		// 执行数据库迁移
