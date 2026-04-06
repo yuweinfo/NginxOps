@@ -155,20 +155,61 @@ func (s *NginxService) TestConfig() map[string]interface{} {
 	}
 }
 
-// ValidateConfig 验证配置语法（不保存）
-// 将配置写入临时文件并测试，返回验证结果
+// ValidateConfig 验证配置语法（不保存，不中断服务）
+// 创建独立的测试环境验证配置，不影响当前运行的 nginx
 func (s *NginxService) ValidateConfig(configContent string) (bool, string) {
-	// 创建临时文件
-	tmpFile := filepath.Join("/tmp", "nginx_test_config.conf")
-	if err := ioutil.WriteFile(tmpFile, []byte(configContent), 0644); err != nil {
-		return false, "无法创建临时配置文件: " + err.Error()
+	// 创建临时测试目录
+	testDir := "/tmp/nginx_validate_" + filepath.Base(os.TempDir())
+	os.RemoveAll(testDir)
+	if err := os.MkdirAll(testDir, 0755); err != nil {
+		return false, "无法创建临时目录: " + err.Error()
 	}
-	defer os.Remove(tmpFile)
+	defer os.RemoveAll(testDir)
 
-	// 测试配置语法
-	cmd := exec.Command("sh", "-c", fmt.Sprintf("nginx -t 2>&1"))
+	// 创建临时 conf.d 目录
+	testConfDir := filepath.Join(testDir, "conf.d")
+	if err := os.MkdirAll(testConfDir, 0755); err != nil {
+		return false, "无法创建临时配置目录: " + err.Error()
+	}
+
+	// 写入待测试的配置
+	testConfFile := filepath.Join(testConfDir, "test.conf")
+	if err := ioutil.WriteFile(testConfFile, []byte(configContent), 0644); err != nil {
+		return false, "无法写入临时配置文件: " + err.Error()
+	}
+
+	// 创建临时 nginx.conf，包含测试配置
+	mainConfig := config.AppConfig.Nginx.ConfigPath
+	mainContent, err := ioutil.ReadFile(mainConfig)
+	if err != nil {
+		// 如果无法读取主配置，使用简单模板
+		mainContent = []byte(`
+worker_processes 1;
+events { worker_connections 1024; }
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    include ` + testConfDir + `/*.conf;
+}
+`)
+	} else {
+		// 替换 include 路径为测试目录
+		content := string(mainContent)
+		// 将原有 conf.d 路径替换为测试目录
+		content = strings.Replace(content, "/etc/nginx/conf.d", testConfDir, -1)
+		content = strings.Replace(content, "/data/nginx/conf.d", testConfDir, -1)
+		mainContent = []byte(content)
+	}
+
+	testMainConfig := filepath.Join(testDir, "nginx.conf")
+	if err := ioutil.WriteFile(testMainConfig, mainContent, 0644); err != nil {
+		return false, "无法写入临时主配置文件: " + err.Error()
+	}
+
+	// 使用临时配置文件测试语法
+	cmd := exec.Command("nginx", "-t", "-c", testMainConfig)
 	output, err := cmd.CombinedOutput()
-	
+
 	if err != nil {
 		return false, string(output)
 	}
