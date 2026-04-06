@@ -2,136 +2,102 @@
 
 ## Project Overview
 
-NginxOps is a web-based management interface for Nginx configuration, log analysis, and SSL certificate management. It consists of a Spring Boot backend and React frontend, deployed as a unified Docker image.
+NginxOps is a web-based Nginx management platform that provides a unified interface for managing Nginx sites, upstreams (load balancers), SSL certificates (with ACME support), and monitoring access logs. It packages Go backend, React frontend, PostgreSQL, and Nginx into a single Docker image managed by Supervisor.
 
-## Common Commands
+## Development Commands
 
-### Backend (Java/Spring Boot)
-
+### Backend (Go)
 ```bash
-# Build backend
-cd backend && mvn clean package -DskipTests
-
-# Run tests
-cd backend && mvn test
-
-# Run single test class
-cd backend && mvn test -Dtest=ClassName
-
-# Run single test method
-cd backend && mvn test -Dtest=ClassName#methodName
+cd backend
+go build -o nginxops ./cmd/server           # Build server
+go build -o migrate ./cmd/migrate           # Build migration tool
+./nginxops                                 # Run server (port 8080)
+./migrate -action up                       # Run migrations
+./migrate -action down                     # Rollback migration
+./migrate -action version                  # Check migration version
+go mod download                            # Download dependencies
 ```
 
-### Frontend (React/TypeScript)
-
+### Frontend (React + Vite)
 ```bash
-# Install dependencies
-cd frontend && npm install
-
-# Development server (proxies /api to localhost:8080)
-cd frontend && npm run dev
-
-# Build for production
-cd frontend && npm run build
-
-# Lint
-cd frontend && npm run lint
+cd frontend
+npm install                                # Install dependencies
+npm run dev                                # Development server (hot reload)
+npm run build                              # Production build (TypeScript + Vite)
+npm run lint                               # Run ESLint
 ```
 
-### Docker Deployment
-
+### Docker
 ```bash
-# Initialize environment (creates .env from .env.example)
-./deploy.sh init
-
-# Build Docker image
-./deploy.sh build
-
-# Start services
-./deploy.sh start
-
-# Stop services
-./deploy.sh stop
-
-# View logs
-./deploy.sh logs [service]
+docker-compose up --build                  # Build and start all services
+docker build -t nginxops:latest .          # Build Docker image
 ```
 
 ## Architecture
 
-### Backend Structure (Spring Boot 3.4 + Java 21)
+### Backend Structure (Go + Gin)
 
-```
-backend/src/main/java/com/nginxpanel/
-├── config/          # Security, WebSocket, CORS configuration
-├── controller/      # REST API endpoints
-├── service/         # Business logic layer
-│   └── dns/         # DNS provider implementations (Strategy pattern)
-├── repository/      # MyBatis-Plus mappers
-├── model/entity/    # JPA entities
-├── dto/             # Data transfer objects
-├── parser/          # Nginx config and log parsers
-├── security/        # JWT authentication filter and utilities
-├── aspect/          # AOP aspects (audit logging)
-└── websocket/       # WebSocket handlers for real-time log streaming
-```
+**Layered Architecture**: Handler → Service → Repository → Database
 
-**Key Dependencies**: MyBatis-Plus (ORM), Flyway (migrations), jjwt (authentication), acme4j (Let's Encrypt), Alibaba/Tencent Cloud DNS SDKs.
+- `cmd/server/main.go` - Application entry point, route definitions, dependency injection
+- `cmd/migrate/main.go` - Database migration CLI tool
+- `internal/config/` - YAML configuration loading (`/data/config.yml`), environment variable fallback
+- `internal/database/` - PostgreSQL connection via GORM, migration execution using golang-migrate
+- `internal/handler/` - HTTP handlers (Gin), request parsing, response formatting
+- `internal/service/` - Business logic layer, coordinates repositories and external operations
+- `internal/repository/` - Data access layer, GORM queries
+- `internal/model/` - GORM model definitions
+- `internal/middleware/` - JWT authentication (`AuthRequired`), CORS, audit logging
+- `internal/websocket/` - WebSocket handler for real-time log streaming
+- `pkg/` - Shared utilities: JWT, ACME (Let's Encrypt), Nginx config generation, HTTP response helpers
 
-**Database**: PostgreSQL with Flyway migrations in `backend/src/main/resources/db/migration/`. Schema reference in `sql/init.sql`.
+**Key Dependencies**: Gin (web), GORM (ORM), golang-migrate, lego (ACME), gorilla/websocket
 
-**Authentication**: JWT-based stateless authentication. Tokens stored in localStorage, validated via `JwtAuthenticationFilter`. Public endpoints: `/api/auth/**`, `/api/health`, `/ws/**`.
+### Frontend Structure (React + TypeScript + Vite)
 
-### Frontend Structure (React 18 + TypeScript + Vite)
+- `src/main.tsx` - React entry point
+- `src/App.tsx` - Route definitions, setup guard, theme management
+- `src/views/` - Page components (Dashboard, Sites, LoadBalancer, Certificates, Logs, Control, Audit, Profile)
+- `src/components/` - Reusable components (DnsProviderDialog, ProtectedRoute, ErrorBoundary)
+- `src/components/ui/` - shadcn/ui components (Radix-based: Button, Dialog, Select, Toast, etc.)
+- `src/api/` - API client modules using axios with JWT token injection
+- `src/contexts/AuthContext.tsx` - Authentication state management
+- `src/hooks/` - Custom hooks (toast, theme)
 
-```
-frontend/src/
-├── api/             # Axios-based API client modules
-├── components/      # Reusable UI components (shadcn/ui based)
-│   └── ui/          # shadcn/ui primitives
-├── contexts/        # React contexts (AuthContext)
-├── hooks/           # Custom hooks
-├── layouts/         # Page layout components
-├── views/           # Page-level components (routes)
-└── lib/             # Utility functions
-```
+**Key Dependencies**: React Router, axios, Radix UI, Tailwind CSS, echarts, recharts
 
-**Key Features**:
-- Dashboard: Statistics and charts (echarts, recharts)
-- Sites: Nginx virtual host configuration
-- LoadBalancer: Upstream/server pool management
-- Certificates: SSL certificate management with ACME
-- Logs: Real-time log viewing via WebSocket
-- Control: Nginx reload/status control
-- Audit: Operation audit log viewing
+### Database Migrations
 
-**API Client**: Centralized in `api/request.ts` with JWT token injection and 401/403 redirect handling.
+- Migrations stored in `backend/migrations/` with `{version}_{name}.up.sql` and `.down.sql` files
+- Uses golang-migrate library
+- Tables: users, sites, upstreams, certificates, certificate_requests, dns_providers, access_log, audit_log, ip_geo_cache, nginx_config_history
 
 ### Docker Deployment
 
-Single unified image containing:
-1. **PostgreSQL** - Internal database (optional, can use external)
-2. **Java Backend** - Spring Boot on port 8080
-3. **Nginx** - Reverse proxy + business proxy on ports 80/443
-4. **Frontend** - Static files served by Nginx
+The application runs as a unified container with Supervisor managing three processes:
+1. **PostgreSQL** - Internal database (optional, can use external DB)
+2. **Go Backend** - API server on port 8899
+3. **Nginx** - Reverse proxy on ports 80/443, serves frontend static files
 
-Managed by Supervisor (`docker/supervisord.conf`). Entry point (`docker/entrypoint.sh`) handles database initialization; Flyway handles schema migration on Spring Boot startup.
+**First Run**: If `/data/config.yml` doesn't exist, the system enters setup mode where users configure database and admin credentials via web UI.
 
-**Data Directory** (`/data`):
-- `postgresql/` - Database files
-- `nginx/conf.d/` - Site configurations
+**Data Directory** (`/data/`):
+- `config.yml` - Main configuration file
+- `postgresql/` - PostgreSQL data
+- `nginx/conf.d/` - Generated Nginx site configs
 - `nginx/ssl/` - SSL certificates
-- `logs/` - Application and Nginx logs
-- `data/` - Application data (ACME keys, etc.)
+- `logs/` - Application, Nginx, and PostgreSQL logs
 
-### Configuration
+### Authentication Flow
 
-Environment variables (see `.env.example`):
-- `USE_EXTERNAL_DB` - Toggle internal/external PostgreSQL
-- `DB_HOST/PORT/NAME/USER/PASSWORD` - Database connection
-- `JWT_SECRET` - JWT signing key (256+ bits)
-- `JAVA_OPTS` - JVM options
+- JWT-based authentication with Bearer token
+- Token stored in localStorage (`nginxops_token`)
+- `AuthRequired()` middleware validates tokens on protected routes
+- Token expiration: 24 hours (configurable)
 
-Backend config: `backend/src/main/resources/application.yml` with environment variable substitution.
+### Nginx Configuration Generation
 
-Frontend dev proxy: `frontend/vite.config.ts` proxies `/api` → `localhost:8080`, `/ws` → WebSocket.
+The backend generates Nginx configuration files in `/data/nginx/conf.d/`:
+- Site configs with server blocks, SSL, proxy settings
+- Upstream configs for load balancing
+- Supports automatic certificate provisioning via ACME (Let's Encrypt, Aliyun DNS, Tencent Cloud DNS)
