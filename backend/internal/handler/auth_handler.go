@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"nginxops/internal/database"
 	"nginxops/internal/service"
 	"nginxops/pkg/response"
 
@@ -22,6 +23,12 @@ func NewAuthHandler() *AuthHandler {
 // Login 用户登录
 // POST /api/auth/login
 func (h *AuthHandler) Login(c *gin.Context) {
+	// 检查数据库是否已初始化
+	if database.DB == nil {
+		response.Error(c, 503, "系统正在初始化，请稍后重试")
+		return
+	}
+
 	var req service.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "请求参数错误")

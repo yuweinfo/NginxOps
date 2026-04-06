@@ -16,6 +16,7 @@ go build -o migrate ./cmd/migrate           # Build migration tool
 ./migrate -action down                     # Rollback migration
 ./migrate -action version                  # Check migration version
 go mod download                            # Download dependencies
+go run ./cmd/server                        # Run with hot reload (development)
 ```
 
 ### Frontend (React + Vite)
@@ -25,6 +26,7 @@ npm install                                # Install dependencies
 npm run dev                                # Development server (hot reload)
 npm run build                              # Production build (TypeScript + Vite)
 npm run lint                               # Run ESLint
+npm run preview                            # Preview production build
 ```
 
 ### Docker
@@ -101,3 +103,30 @@ The backend generates Nginx configuration files in `/data/nginx/conf.d/`:
 - Site configs with server blocks, SSL, proxy settings
 - Upstream configs for load balancing
 - Supports automatic certificate provisioning via ACME (Let's Encrypt, Aliyun DNS, Tencent Cloud DNS)
+
+### API Response Pattern
+
+All API endpoints return a unified JSON response structure:
+```go
+type ApiResponse struct {
+    Success bool        `json:"success"`
+    Message string      `json:"message"`
+    Data    interface{} `json:"data,omitempty"`
+}
+```
+Use `pkg/response` helpers: `Success()`, `Error()`, `BadRequest()`, `Unauthorized()`, `Forbidden()`, `NotFound()`, `InternalError()`.
+
+### Environment Variables
+
+Configuration can be set via `/data/config.yml` or environment variables:
+- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` - Database connection
+- `JWT_SECRET` - JWT signing key (min 32 characters)
+- `DATA_DIR` - Data directory path (default: `/data`)
+
+### Setup Flow
+
+On first run, if `/data/config.yml` doesn't exist, the system enters setup mode:
+1. Frontend shows setup wizard at `/setup`
+2. User configures database (internal/external) and admin credentials
+3. `POST /api/setup/init` creates config file and initializes database
+4. System restarts in normal mode with authentication enabled

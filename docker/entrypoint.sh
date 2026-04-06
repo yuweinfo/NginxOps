@@ -63,6 +63,12 @@ if [ ! -f "${CONFIG_FILE}" ]; then
     
     # 设置 PostgreSQL 为手动启动模式（不自动启动，但保留配置）
     sed -i '/\[program:postgresql\]/,/^\[/ s/autostart=true/autostart=false/' /etc/supervisord.conf
+    
+    # 预先创建并设置 PostgreSQL 数据目录权限（setup 模式下也需要）
+    # 这样 initdb 在以 postgres 用户运行时才能成功
+    mkdir -p ${DATA_DIR}/postgresql
+    chown -R postgres:postgres ${DATA_DIR}/postgresql 2>/dev/null || true
+    chmod 700 ${DATA_DIR}/postgresql 2>/dev/null || true
 else
     echo "Config file found, loading configuration..."
     
@@ -74,6 +80,9 @@ else
         sed -i '/^\[program:postgresql\]/,/^$/d' /etc/supervisord.conf
     else
         echo "Using internal database, PostgreSQL will be started by supervisor"
+        
+        # 确保 PostgreSQL 自动启动（setup 模式可能已将其设为 false）
+        sed -i '/\[program:postgresql\]/,/^\[/ s/autostart=false/autostart=true/' /etc/supervisord.conf
         
         # 设置权限
         chown -R postgres:postgres ${DATA_DIR}/postgresql
