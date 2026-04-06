@@ -19,9 +19,6 @@
 services:
   nginxops:
     image: docker.cnb.cool/yuweinfo/nginxops:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
     container_name: nginxops
     restart: unless-stopped
     ports:
