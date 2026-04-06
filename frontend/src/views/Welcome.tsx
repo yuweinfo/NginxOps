@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Loader2, Database, Shield, User, Plug, Copy, CheckCheck, Check, ArrowLeft, ArrowRight, Server } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
@@ -32,6 +32,38 @@ export default function Welcome() {
   const [dbTestResult, setDbTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [animating, setAnimating] = useState(false)
   const [direction, setDirection] = useState<'left' | 'right'>('right')
+  const [checkingStatus, setCheckingStatus] = useState(true)
+
+  // 检查系统是否已配置，防止已初始化用户重新进入
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const response = await setupApi.getStatus()
+        if (response.data?.configured) {
+          // 已配置，重定向到登录页
+          navigate('/login', { replace: true })
+          return
+        }
+      } catch (error) {
+        console.error('Failed to check setup status:', error)
+      } finally {
+        setCheckingStatus(false)
+      }
+    }
+    checkStatus()
+  }, [navigate])
+
+  // 正在检查状态时显示加载
+  if (checkingStatus) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-neutral-400" />
+          <p className="mt-4 text-sm text-neutral-500">检查系统状态...</p>
+        </div>
+      </div>
+    )
+  }
 
   // 表单数据
   const [useExternalDB, setUseExternalDB] = useState(false)
