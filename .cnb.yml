@@ -1,0 +1,36 @@
+$:
+  vscode:
+    - runner:
+        cpus: 8
+      docker:
+        build: .ide/Dockerfile
+      services:
+        - vscode
+        - docker
+      imports: https://cnb.cool/yuweinfo/config/-/blob/main/env.tailscale.yml
+      stages:
+        - name: 安装 Tailscale
+          script: |
+            curl -fsSL https://tailscale.com/install.sh | sh
+
+        - name: 启动 Tailscale
+          script: |
+            nohup tailscaled --tun=userspace-networking --socks5-server=localhost:1055 --outbound-http-proxy-listen=localhost:1055 & tailscale up --auth-key="${AUTH_KEY}" --hostname=cnb \
+
+        - name: 注入全局代理
+          script: |
+            echo 'export HTTP_PROXY=socks5://127.0.0.1:1055' >> ~/.bashrc
+            echo 'export HTTPS_PROXY=socks5://127.0.0.1:1055' >> ~/.bashrc
+            echo 'export ALL_PROXY=socks5://127.0.0.1:1055' >> ~/.bashrc
+            echo 'export _JAVA_OPTIONS="-DsocksProxyHost=127.0.0.1 -DsocksProxyPort=1055 -Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=1055"' >> ~/.bashrc
+            bash -c 'source ~/.bashrc'
+
+main:
+  push:
+    - services:
+        - docker
+      stages:
+        - name: docker build
+          script: docker build -t ${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:latest .
+        - name: docker push
+          script: docker push ${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:latest

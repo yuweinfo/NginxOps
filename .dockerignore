@@ -1,0 +1,32 @@
+# IDE
+.ide/
+.idea/
+*.iml
+
+# Git
+.git/
+.gitignore
+
+# Node
+frontend/node_modules/
+
+# Java
+backend/target/
+
+# Logs
+*.log
+nginx/logs/
+
+# Docker
+docker-compose*.yml
+.dockerignore
+
+# Docs
+*.md
+
+# Config
+.env
+.env.*
+
+# Test
+**/test/
