@@ -1,10 +1,7 @@
 services:
   # 主服务 
   nginxops:
-    image: nginxops:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: docker.cnb.cool/yuweinfo/nginxops:latest
     container_name: nginxops
     restart: unless-stopped
     ports:
@@ -14,8 +11,6 @@ services:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
     volumes:
-      # 统一数据目录挂载
-      # 配置文件 config.yml 将在此目录中自动创建
       - nginxops-data:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8899/api/health"]

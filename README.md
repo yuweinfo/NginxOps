@@ -18,7 +18,7 @@
 ```yaml
 services:
   nginxops:
-    image: nginxops:latest
+    image: docker.cnb.cool/yuweinfo/nginxops:latest
     build:
       context: .
       dockerfile: Dockerfile
