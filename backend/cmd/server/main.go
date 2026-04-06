@@ -44,6 +44,9 @@ func main() {
 		if err := authService.InitDefaultUser(); err != nil {
 			log.Printf("Warning: Failed to init default user: %v", err)
 		}
+
+		// 启动日志收集服务（单例，内存聚合统计）
+		service.GetLogCollector().Start()
 	}
 
 	// 创建Gin引擎
