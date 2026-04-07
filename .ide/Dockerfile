@@ -11,6 +11,14 @@ RUN apt-get update \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
+# 安装最新版 Go
+RUN wget -O go.tar.gz https://go.dev/dl/go$(curl -s https://go.dev/VERSION?m=text).linux-amd64.tar.gz \
+ && tar -C /usr/local -xzf go.tar.gz \
+ && rm go.tar.gz
+
+# 设置 Go 环境变量
+ENV PATH="/usr/local/go/bin:${PATH}"
+
 # 创建 /ide_cnb 目录，用于安装 IDE，注意安装路径必须是这个，便于自动识别环境中支持哪些 ide
 RUN mkdir -p /ide_cnb
 

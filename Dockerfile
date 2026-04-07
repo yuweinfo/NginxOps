@@ -19,9 +19,11 @@ WORKDIR /build/backend
 RUN apk add --no-cache git ca-certificates tzdata
 # 复制 go.mod 和 go.sum 并下载依赖
 COPY backend/go.mod backend/go.sum ./
-RUN go mod download
-# 复制源代码并构建
+# 复制源代码（go mod tidy 需要读取源码中的导入）
 COPY backend/ ./
+# 整理依赖并下载
+RUN go mod tidy && go mod download
+# 构建
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o /app/nginxops ./cmd/server
 
 # ==================== 最终镜像 ====================
