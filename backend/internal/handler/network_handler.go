@@ -1,12 +1,12 @@
 package handler
 
 import (
-	"errors"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"nginxops/internal/model"
 	"nginxops/internal/service"
+	"nginxops/pkg/dnsprovider"
 	"nginxops/pkg/response"
 	"strings"
 
@@ -196,25 +196,14 @@ func (h *NetworkHandler) CreateDNSRecord(c *gin.Context) {
 
 // createDNSRecordForProvider 根据供应商类型创建DNS记录
 func (h *NetworkHandler) createDNSRecordForProvider(provider *model.DnsProvider, domain, ip, recordType string) error {
-	switch provider.ProviderType {
-	case "aliyun":
-		return h.createAliyunDNSRecord(provider, domain, ip, recordType)
-	case "tencent":
-		return h.createTencentDNSRecord(provider, domain, ip, recordType)
-	default:
-		return errors.New("unsupported DNS provider type: " + provider.ProviderType)
+	dnsProvider, err := dnsprovider.NewProvider(dnsprovider.ProviderConfig{
+		ProviderType:    provider.ProviderType,
+		AccessKeyID:     provider.AccessKeyID,
+		AccessKeySecret: provider.AccessKeySecret,
+	})
+	if err != nil {
+		return err
 	}
-}
 
-// createAliyunDNSRecord 创建阿里云DNS记录
-func (h *NetworkHandler) createAliyunDNSRecord(provider *model.DnsProvider, domain, ip, recordType string) error {
-	// 使用阿里云DNS SDK创建记录
-	// 这里简化实现，实际需要引入阿里云SDK
-	return nil
-}
-
-// createTencentDNSRecord 创建腾讯云DNS记录
-func (h *NetworkHandler) createTencentDNSRecord(provider *model.DnsProvider, domain, ip, recordType string) error {
-	// 使用腾讯云DNS SDK创建记录
-	return nil
+	return dnsProvider.CreateDNSRecord(domain, ip, recordType)
 }

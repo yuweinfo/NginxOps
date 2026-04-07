@@ -156,12 +156,12 @@ export default function Sites() {
     }
   }
 
-  // 在向导打开时加载网络信息
+  // 在向导打开时加载网络信息（新建和编辑模式都需要）
   useEffect(() => {
-    if (wizardOpen && !isEditMode) {
+    if (wizardOpen) {
       loadNetworkInfo()
     }
-  }, [wizardOpen, isEditMode])
+  }, [wizardOpen])
 
   const getCertById = (id: number | null) => certs.find(c => c.id === id)
 
