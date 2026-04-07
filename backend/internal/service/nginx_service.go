@@ -158,6 +158,13 @@ func (s *NginxService) TestConfig() map[string]interface{} {
 // ValidateConfig 验证配置语法（不保存，不中断服务）
 // 创建独立的测试环境验证配置，不影响当前运行的 nginx
 func (s *NginxService) ValidateConfig(configContent string) (bool, string) {
+	// 检查 nginx 命令是否存在
+	if _, err := exec.LookPath("nginx"); err != nil {
+		// nginx 未安装，跳过验证（开发/测试环境）
+		log.Println("Warning: nginx not found, skipping config validation")
+		return true, ""
+	}
+
 	// 创建临时测试目录
 	testDir := "/tmp/nginx_validate_" + filepath.Base(os.TempDir())
 	os.RemoveAll(testDir)
@@ -176,6 +183,23 @@ func (s *NginxService) ValidateConfig(configContent string) (bool, string) {
 	testConfFile := filepath.Join(testConfDir, "test.conf")
 	if err := ioutil.WriteFile(testConfFile, []byte(configContent), 0644); err != nil {
 		return false, "无法写入临时配置文件: " + err.Error()
+	}
+
+	// 复制现有的 upstream 配置文件到测试目录（解决跨文件引用问题）
+	confDir := config.AppConfig.Nginx.ConfDir
+	if files, err := ioutil.ReadDir(confDir); err == nil {
+		for _, f := range files {
+			if !f.IsDir() && strings.HasSuffix(f.Name(), ".conf") {
+				srcPath := filepath.Join(confDir, f.Name())
+				dstPath := filepath.Join(testConfDir, f.Name())
+				// 不覆盖测试文件
+				if srcPath != testConfFile {
+					if data, err := ioutil.ReadFile(srcPath); err == nil {
+						ioutil.WriteFile(dstPath, data, 0644)
+					}
+				}
+			}
+		}
 	}
 
 	// 创建临时 nginx.conf，包含测试配置

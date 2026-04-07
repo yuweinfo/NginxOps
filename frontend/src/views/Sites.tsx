@@ -49,6 +49,7 @@ import { sitesApi, Site, LocationConfig, SiteUpstreamServer as UpstreamServer } 
 import { certificatesApi, Certificate } from '@/api/certificates'
 import { networkApi, NetworkInterface, DNSProviderInfo } from '@/api/network'
 import { dnsProvidersApi, DnsProvider } from '@/api/dnsProviders'
+import { upstreamsApi, Upstream } from '@/api/upstreams'
 
 // 向导表单数据类型 - locations 和 upstreamServers 始终是数组
 interface WizardFormData extends Omit<Partial<Site>, 'locations' | 'upstreamServers'> {
@@ -86,6 +87,7 @@ export default function Sites() {
   const [wizardData, setWizardData] = useState<WizardFormData>({
     port: 80,
     siteType: 'proxy',
+    upstreamId: null,
     upstreamServers: [{ address: '', weight: 1, backup: false }],
     locations: [{ path: '/', proxyPass: '', proxyHeaders: true, websocket: false }],
     forceHttps: true,
@@ -93,6 +95,7 @@ export default function Sites() {
     cache: false,
   })
   const [isEditMode, setIsEditMode] = useState(false) // 是否为编辑模式
+  const [useExistingUpstream, setUseExistingUpstream] = useState(false) // 是否使用已定义的负载均衡器
 
   // 网络相关状态
   const [serverIP, setServerIP] = useState('')
@@ -108,16 +111,21 @@ export default function Sites() {
   // 高级功能开关（默认关闭）
   const [showAdvancedDNS, setShowAdvancedDNS] = useState(false)
 
+  // 负载均衡器列表
+  const [upstreams, setUpstreams] = useState<Upstream[]>([])
+
   // 加载数据
   const loadData = useCallback(async () => {
     try {
       setLoading(true)
-      const [sitesRes, certsRes] = await Promise.all([
+      const [sitesRes, certsRes, upstreamsRes] = await Promise.all([
         sitesApi.list(),
-        certificatesApi.list()
+        certificatesApi.list(),
+        upstreamsApi.list()
       ])
       setSites(sitesRes.data)
       setCerts(certsRes.data)
+      setUpstreams(upstreamsRes.data || [])
     } catch (error) {
       toast({ title: '数据加载失败', variant: 'destructive' })
     } finally {
@@ -214,6 +222,7 @@ export default function Sites() {
       port: site.port || 80,
       siteType: site.siteType || 'proxy',
       rootDir: site.rootDir || '',
+      upstreamId: site.upstreamId || null,
       locations: (locations as LocationConfig[])?.length > 0
         ? locations as LocationConfig[]
         : [{ path: '/', proxyPass: '', proxyHeaders: true, websocket: false }],
@@ -225,6 +234,7 @@ export default function Sites() {
       gzip: site.gzip || false,
       cache: site.cache || false,
     })
+    setUseExistingUpstream(!!site.upstreamId)
     setWizardOpen(true)
   }
 
@@ -251,12 +261,14 @@ export default function Sites() {
     setWizardData({
       port: 80,
       siteType: 'proxy',
+      upstreamId: null,
       upstreamServers: [{ address: '', weight: 1, backup: false }],
       locations: [{ path: '/', proxyPass: '', proxyHeaders: true, websocket: false }],
       forceHttps: true,
       gzip: true,
       cache: false,
     })
+    setUseExistingUpstream(false)
     // 重置网络相关状态
     setServerIP('')
     setSelectedDnsProvider(null)
@@ -278,7 +290,8 @@ export default function Sites() {
       siteType: wizardData.siteType || 'proxy',
       rootDir: wizardData.rootDir || '',
       locations: JSON.stringify(wizardData.locations || []),
-      upstreamServers: JSON.stringify(wizardData.upstreamServers || []),
+      upstreamId: useExistingUpstream ? wizardData.upstreamId : null,
+      upstreamServers: useExistingUpstream ? '[]' : JSON.stringify(wizardData.upstreamServers || []),
       sslEnabled: !!wizardData.certId,
       certId: wizardData.certId || null,
       forceHttps: wizardData.forceHttps || false,
@@ -413,6 +426,11 @@ export default function Sites() {
           return wizardData.locations?.some(l => l.proxyPass.trim())
         }
         if (wizardData.siteType === 'loadbalance') {
+          // 如果使用已定义的 upstream，需要选择一个
+          if (useExistingUpstream) {
+            return !!wizardData.upstreamId
+          }
+          // 否则需要自定义服务器
           return wizardData.upstreamServers?.some(s => s.address.trim())
         }
         return true
@@ -915,31 +933,108 @@ export default function Sites() {
 
                   {wizardData.siteType === 'loadbalance' && (
                     <div className="space-y-5">
-                      {(wizardData.upstreamServers || []).map((server, idx) => (
-                        <div key={idx} className="p-5 bg-muted/50 rounded-xl border">
-                          <div className="grid grid-cols-3 gap-4">
-                            <div className="col-span-2 space-y-2">
-                              <label className="text-xs font-medium text-muted-foreground">地址</label>
-                              <Input placeholder="192.168.1.10:8080" value={server.address} onChange={(e) => {
-                                const newServers = [...(wizardData.upstreamServers || [])]
-                                newServers[idx].address = e.target.value
-                                setWizardData({ ...wizardData, upstreamServers: newServers })
-                              }} className="h-11 px-3 rounded-lg text-sm" />
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-xs font-medium text-muted-foreground">权重</label>
-                              <Input type="number" min="1" value={server.weight} onChange={(e) => {
-                                const newServers = [...(wizardData.upstreamServers || [])]
-                                newServers[idx].weight = parseInt(e.target.value) || 1
-                                setWizardData({ ...wizardData, upstreamServers: newServers })
-                              }} className="h-11 px-3 rounded-lg text-sm" />
-                            </div>
-                          </div>
+                      {/* 选择使用已定义的负载均衡器还是自定义服务器 */}
+                      {upstreams.length > 0 && (
+                        <div className="flex items-center gap-4 p-4 bg-muted/30 rounded-xl border mb-4">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="upstreamMode"
+                              checked={!useExistingUpstream}
+                              onChange={() => {
+                                setUseExistingUpstream(false)
+                                setWizardData({ ...wizardData, upstreamId: null })
+                              }}
+                              className="w-4 h-4"
+                            />
+                            <span className="text-sm">自定义后端服务器</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="upstreamMode"
+                              checked={useExistingUpstream}
+                              onChange={() => setUseExistingUpstream(true)}
+                              className="w-4 h-4"
+                            />
+                            <span className="text-sm">使用已定义的负载均衡器</span>
+                          </label>
                         </div>
-                      ))}
-                      <Button variant="ghost" size="sm" onClick={() => setWizardData({ ...wizardData, upstreamServers: [...(wizardData.upstreamServers || []), { address: '', weight: 1, backup: false }] })} className="text-muted-foreground">
-                        <Plus className="h-4 w-4 mr-1" /> 添加服务器
-                      </Button>
+                      )}
+
+                      {/* 使用已定义的负载均衡器 */}
+                      {useExistingUpstream && (
+                        <div className="space-y-2.5">
+                          <label className="text-sm font-medium text-foreground">选择负载均衡器</label>
+                          <Select
+                            value={wizardData.upstreamId?.toString() || ''}
+                            onValueChange={(v) => setWizardData({ ...wizardData, upstreamId: v ? parseInt(v) : null })}
+                          >
+                            <SelectTrigger className="h-11 px-4 rounded-xl">
+                              <SelectValue placeholder="选择一个负载均衡器" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl">
+                              {upstreams.map((upstream) => (
+                                <SelectItem key={upstream.id} value={upstream.id.toString()}>
+                                  {upstream.name} ({upstream.lbMode === 'round_robin' ? '轮询' : upstream.lbMode === 'ip_hash' ? 'IP哈希' : '最少连接'})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {wizardData.upstreamId && (
+                            <div className="p-4 bg-muted/50 rounded-xl border mt-3">
+                              <p className="text-xs text-muted-foreground mb-2">后端服务器：</p>
+                              {(() => {
+                                const selected = upstreams.find(u => u.id === wizardData.upstreamId)
+                                const servers = selected?.servers
+                                if (typeof servers === 'string') {
+                                  try {
+                                    return JSON.parse(servers).map((s: any, i: number) => (
+                                      <div key={i} className="text-sm text-foreground">
+                                        {s.host}:{s.port}
+                                      </div>
+                                    ))
+                                  } catch {
+                                    return <span className="text-sm text-muted-foreground">无服务器</span>
+                                  }
+                                }
+                                return <span className="text-sm text-muted-foreground">无服务器</span>
+                              })()}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 自定义后端服务器 */}
+                      {!useExistingUpstream && (
+                        <>
+                          {(wizardData.upstreamServers || []).map((server, idx) => (
+                            <div key={idx} className="p-5 bg-muted/50 rounded-xl border">
+                              <div className="grid grid-cols-3 gap-4">
+                                <div className="col-span-2 space-y-2">
+                                  <label className="text-xs font-medium text-muted-foreground">地址</label>
+                                  <Input placeholder="192.168.1.10:8080" value={server.address} onChange={(e) => {
+                                    const newServers = [...(wizardData.upstreamServers || [])]
+                                    newServers[idx].address = e.target.value
+                                    setWizardData({ ...wizardData, upstreamServers: newServers })
+                                  }} className="h-11 px-3 rounded-lg text-sm" />
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-xs font-medium text-muted-foreground">权重</label>
+                                  <Input type="number" min="1" value={server.weight} onChange={(e) => {
+                                    const newServers = [...(wizardData.upstreamServers || [])]
+                                    newServers[idx].weight = parseInt(e.target.value) || 1
+                                    setWizardData({ ...wizardData, upstreamServers: newServers })
+                                  }} className="h-11 px-3 rounded-lg text-sm" />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          <Button variant="ghost" size="sm" onClick={() => setWizardData({ ...wizardData, upstreamServers: [...(wizardData.upstreamServers || []), { address: '', weight: 1, backup: false }] })} className="text-muted-foreground">
+                            <Plus className="h-4 w-4 mr-1" /> 添加服务器
+                          </Button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

@@ -13,7 +13,8 @@ type Site struct {
 	SiteType        string    `json:"siteType" gorm:"size:20;default:proxy"` // static/proxy/loadbalance
 	RootDir         string    `json:"rootDir" gorm:"size:255"`
 	Locations       string    `json:"locations" gorm:"type:text"`           // JSON
-	UpstreamServers string    `json:"upstreamServers" gorm:"type:text"`     // JSON
+	UpstreamID      *uint     `json:"upstreamId"`                           // 关联已定义的 upstream
+	UpstreamServers string    `json:"upstreamServers" gorm:"type:text"`     // JSON (站点自己定义的后端服务器)
 	SSLEnabled      bool      `json:"sslEnabled" gorm:"default:false"`
 	CertID          *uint     `json:"certId"`
 	ForceHttps      bool      `json:"forceHttps" gorm:"default:false"`

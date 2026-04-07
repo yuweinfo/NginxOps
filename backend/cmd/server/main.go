@@ -71,6 +71,7 @@ func main() {
 	setupHandler := handler.NewSetupHandler()
 	dbTestHandler := handler.NewDBTestHandler()
 	networkHandler := handler.NewNetworkHandler()
+	healthHandler := handler.NewHealthHandler()
 
 	// WebSocket Handler
 	logWsHandler := websocket.NewLogWebSocketHandler()
@@ -137,6 +138,7 @@ func main() {
 			upstreams.PUT("/:id", upstreamHandler.Update)
 			upstreams.DELETE("/:id", upstreamHandler.Delete)
 			upstreams.GET("/:id/config", upstreamHandler.GetConfig)
+			upstreams.POST("/:id/health-check", healthHandler.CheckUpstream)
 		}
 
 		// 证书相关

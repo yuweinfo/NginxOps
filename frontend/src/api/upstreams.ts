@@ -24,6 +24,17 @@ export interface Upstream {
   updatedAt?: string
 }
 
+export interface HealthCheckResult {
+  upstreamId: number
+  upstreamName: string
+  serverHost: string
+  serverPort: number
+  healthy: boolean
+  responseTime: number
+  error?: string
+  checkedAt: string
+}
+
 export const upstreamsApi = {
   list: () => request.get<Upstream[]>('/upstreams'),
 
@@ -41,4 +52,6 @@ export const upstreamsApi = {
   delete: (id: number) => request.delete<void>(`/upstreams/${id}`),
 
   getConfig: (id: number) => request.get<string>(`/upstreams/${id}/config`),
+
+  healthCheck: (id: number) => request.post<HealthCheckResult[]>(`/upstreams/${id}/health-check`),
 }

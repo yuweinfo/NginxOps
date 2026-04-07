@@ -100,6 +100,24 @@ npm install
 npm run dev
 ```
 
-## 许可证
+## 项目截图
 
+- 登录页
+![alt text](images/image.png)
+
+- 仪表盘
+![alt text](images/image-1.png)
+
+- 站点管理
+![alt text](images/image-2.png)
+
+- 反向代理可视化编辑
+![alt text](images/image-3.png)
+
+- 证书管理
+![alt text](images/image-4.png)
+
+- 操作审计
+![alt text](images/image-5.png)
+## 许可证
 [MIT License](LICENSE)

@@ -14,14 +14,16 @@ import (
 )
 
 type SiteService struct {
-	siteRepo *repository.SiteRepository
-	certRepo *repository.CertificateRepository
+	siteRepo     *repository.SiteRepository
+	certRepo     *repository.CertificateRepository
+	upstreamRepo *repository.UpstreamRepository
 }
 
 func NewSiteService() *SiteService {
 	return &SiteService{
-		siteRepo: repository.NewSiteRepository(),
-		certRepo: repository.NewCertificateRepository(),
+		siteRepo:     repository.NewSiteRepository(),
+		certRepo:     repository.NewCertificateRepository(),
+		upstreamRepo: repository.NewUpstreamRepository(),
 	}
 }
 
@@ -33,6 +35,7 @@ type SiteDto struct {
 	SiteType        string `json:"siteType"`
 	RootDir         string `json:"rootDir"`
 	Locations       string `json:"locations"`
+	UpstreamID      *uint  `json:"upstreamId"`
 	UpstreamServers string `json:"upstreamServers"`
 	SSLEnabled      bool   `json:"sslEnabled"`
 	CertID          *uint  `json:"certId"`
@@ -72,6 +75,7 @@ func (s *SiteService) Create(dto *SiteDto) (*model.Site, error) {
 		SiteType:        dto.SiteType,
 		RootDir:         dto.RootDir,
 		Locations:       dto.Locations,
+		UpstreamID:      dto.UpstreamID,
 		UpstreamServers: dto.UpstreamServers,
 		SSLEnabled:      dto.SSLEnabled,
 		CertID:          dto.CertID,
@@ -113,6 +117,7 @@ func (s *SiteService) Update(id uint, dto *SiteDto) (*model.Site, error) {
 	originalSiteType := site.SiteType
 	originalRootDir := site.RootDir
 	originalLocations := site.Locations
+	originalUpstreamID := site.UpstreamID
 	originalUpstreamServers := site.UpstreamServers
 	originalSSLEnabled := site.SSLEnabled
 	originalCertID := site.CertID
@@ -138,6 +143,7 @@ func (s *SiteService) Update(id uint, dto *SiteDto) (*model.Site, error) {
 	if dto.Locations != "" {
 		site.Locations = dto.Locations
 	}
+	site.UpstreamID = dto.UpstreamID
 	if dto.UpstreamServers != "" {
 		site.UpstreamServers = dto.UpstreamServers
 	}
@@ -161,6 +167,7 @@ func (s *SiteService) Update(id uint, dto *SiteDto) (*model.Site, error) {
 		site.SiteType = originalSiteType
 		site.RootDir = originalRootDir
 		site.Locations = originalLocations
+		site.UpstreamID = originalUpstreamID
 		site.UpstreamServers = originalUpstreamServers
 		site.SSLEnabled = originalSSLEnabled
 		site.CertID = originalCertID
@@ -255,53 +262,61 @@ func (s *SiteService) buildNginxConfig(site *model.Site) string {
 	}
 
 	// 负载均衡：定义 upstream 块
-	if siteType == "loadbalance" && site.UpstreamServers != "" {
-		upstreamName := strings.Replace(site.Domain, ".", "_", -1) + "_backend"
-		sb.WriteString(fmt.Sprintf("upstream %s {\n", upstreamName))
+	// 优先使用关联的 upstream，如果没有则使用站点自己定义的 UpstreamServers
+	if siteType == "loadbalance" {
+		// 检查是否关联了已定义的 upstream
+		if site.UpstreamID != nil {
+			// 使用已定义的 upstream，不需要在这里生成配置
+			// upstream 配置由 upstream_service 单独管理
+		} else if site.UpstreamServers != "" {
+			// 使用站点自己定义的后端服务器
+			upstreamName := strings.Replace(site.Domain, ".", "_", -1) + "_backend"
+			sb.WriteString(fmt.Sprintf("upstream %s {\n", upstreamName))
 
-		var servers []map[string]interface{}
-		if err := json.Unmarshal([]byte(site.UpstreamServers), &servers); err == nil {
-			for _, server := range servers {
-				address, _ := server["address"].(string)
-				host, _ := server["host"].(string)
-				port := 80
-				if p, ok := server["port"]; ok {
-					switch v := p.(type) {
-					case float64:
-						port = int(v)
-					case int:
-						port = v
+			var servers []map[string]interface{}
+			if err := json.Unmarshal([]byte(site.UpstreamServers), &servers); err == nil {
+				for _, server := range servers {
+					address, _ := server["address"].(string)
+					host, _ := server["host"].(string)
+					port := 80
+					if p, ok := server["port"]; ok {
+						switch v := p.(type) {
+						case float64:
+							port = int(v)
+						case int:
+							port = v
+						}
 					}
-				}
 
-				serverAddr := address
-				if serverAddr == "" && host != "" {
-					serverAddr = fmt.Sprintf("%s:%d", host, port)
-				}
-				if serverAddr == "" {
-					continue
-				}
+					serverAddr := address
+					if serverAddr == "" && host != "" {
+						serverAddr = fmt.Sprintf("%s:%d", host, port)
+					}
+					if serverAddr == "" {
+						continue
+					}
 
-				sb.WriteString(fmt.Sprintf("    server %s", serverAddr))
-				if weight, ok := server["weight"]; ok {
-					w := 1
-					switch v := weight.(type) {
-					case float64:
-						w = int(v)
-					case int:
-						w = v
+					sb.WriteString(fmt.Sprintf("    server %s", serverAddr))
+					if weight, ok := server["weight"]; ok {
+						w := 1
+						switch v := weight.(type) {
+						case float64:
+							w = int(v)
+						case int:
+							w = v
+						}
+						if w != 1 {
+							sb.WriteString(fmt.Sprintf(" weight=%d", w))
+						}
 					}
-					if w != 1 {
-						sb.WriteString(fmt.Sprintf(" weight=%d", w))
+					if backup, ok := server["backup"].(bool); ok && backup {
+						sb.WriteString(" backup")
 					}
+					sb.WriteString(";\n")
 				}
-				if backup, ok := server["backup"].(bool); ok && backup {
-					sb.WriteString(" backup")
-				}
-				sb.WriteString(";\n")
 			}
+			sb.WriteString("}\n\n")
 		}
-		sb.WriteString("}\n\n")
 	}
 
 	// HTTP 重定向到 HTTPS
@@ -434,7 +449,20 @@ func (s *SiteService) buildProxyConfig(sb *strings.Builder, site *model.Site) {
 }
 
 func (s *SiteService) buildLoadBalanceConfig(sb *strings.Builder, site *model.Site) {
-	upstreamName := strings.Replace(site.Domain, ".", "_", -1) + "_backend"
+	var upstreamName string
+
+	// 如果关联了已定义的 upstream，使用其名称
+	if site.UpstreamID != nil {
+		upstream, err := s.upstreamRepo.FindByID(*site.UpstreamID)
+		if err == nil && upstream != nil {
+			upstreamName = upstream.Name
+		}
+	}
+
+	// 否则使用默认的名称
+	if upstreamName == "" {
+		upstreamName = strings.Replace(site.Domain, ".", "_", -1) + "_backend"
+	}
 
 	sb.WriteString("\n    location / {\n")
 	sb.WriteString(fmt.Sprintf("        proxy_pass http://%s;\n", upstreamName))

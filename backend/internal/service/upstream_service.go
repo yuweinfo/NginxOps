@@ -3,8 +3,12 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	"log"
+	"nginxops/internal/config"
 	"nginxops/internal/model"
 	"nginxops/internal/repository"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -40,11 +44,7 @@ func (s *UpstreamService) validateUpstream(dto *UpstreamDto) error {
 		return fmt.Errorf("upstream 名称必须以字母开头，只能包含字母、数字和下划线")
 	}
 
-	// 验证服务器配置
-	if len(dto.Servers) == 0 {
-		return fmt.Errorf("至少需要配置一个后端服务器")
-	}
-
+	// 验证服务器配置（如果有服务器的话）
 	for i, server := range dto.Servers {
 		if server.Host == "" {
 			return fmt.Errorf("服务器 %d: 主机地址不能为空", i+1)
@@ -102,6 +102,12 @@ func (s *UpstreamService) Create(dto *UpstreamDto) (*UpstreamDto, error) {
 	if err := s.repo.Create(upstream); err != nil {
 		return nil, err
 	}
+
+	// 写入配置文件
+	if err := s.writeConfigFile(upstream); err != nil {
+		log.Printf("Warning: 写入 upstream 配置文件失败: %v", err)
+	}
+
 	dto = &UpstreamDto{
 		ID:            upstream.ID,
 		Name:          upstream.Name,
@@ -126,6 +132,9 @@ func (s *UpstreamService) Update(id uint, dto *UpstreamDto) (*UpstreamDto, error
 		return nil, fmt.Errorf("Upstream 不存在")
 	}
 
+	// 保存旧名称，用于删除旧配置文件
+	oldName := upstream.Name
+
 	upstream.Name = dto.Name
 	upstream.LBMode = dto.LBMode
 	upstream.HealthCheck = dto.HealthCheck
@@ -137,11 +146,31 @@ func (s *UpstreamService) Update(id uint, dto *UpstreamDto) (*UpstreamDto, error
 	if err := s.repo.Update(upstream); err != nil {
 		return nil, err
 	}
+
+	// 如果名称变更，删除旧配置文件
+	if oldName != upstream.Name {
+		oldUpstream := &model.Upstream{Name: oldName}
+		s.deleteConfigFile(oldUpstream)
+	}
+
+	// 写入新配置文件
+	if err := s.writeConfigFile(upstream); err != nil {
+		log.Printf("Warning: 写入 upstream 配置文件失败: %v", err)
+	}
+
 	dto.ID = upstream.ID
 	return dto, nil
 }
 
 func (s *UpstreamService) Delete(id uint) error {
+	upstream, err := s.repo.FindByID(id)
+	if err != nil {
+		return err
+	}
+
+	// 删除配置文件
+	s.deleteConfigFile(upstream)
+
 	return s.repo.Delete(id)
 }
 
@@ -253,4 +282,50 @@ func (s *UpstreamService) buildUpstreamConfig(upstream *model.Upstream) string {
 
 	sb.WriteString("}\n")
 	return sb.String()
+}
+
+// writeConfigFile 写入 upstream 配置文件
+func (s *UpstreamService) writeConfigFile(upstream *model.Upstream) error {
+	confDir := config.AppConfig.Nginx.ConfDir
+	if confDir == "" {
+		confDir = "/data/nginx/conf.d"
+	}
+
+	// 确保目录存在
+	if err := os.MkdirAll(confDir, 0755); err != nil {
+		return fmt.Errorf("创建配置目录失败: %v", err)
+	}
+
+	// 生成配置内容
+	configContent := s.buildUpstreamConfig(upstream)
+
+	// 写入文件：upstream_{name}.conf
+	fileName := fmt.Sprintf("upstream_%s.conf", upstream.Name)
+	filePath := filepath.Join(confDir, fileName)
+
+	if err := os.WriteFile(filePath, []byte(configContent), 0644); err != nil {
+		return fmt.Errorf("写入配置文件失败: %v", err)
+	}
+
+	log.Printf("Upstream 配置文件已写入: %s", filePath)
+	return nil
+}
+
+// deleteConfigFile 删除 upstream 配置文件
+func (s *UpstreamService) deleteConfigFile(upstream *model.Upstream) error {
+	confDir := config.AppConfig.Nginx.ConfDir
+	if confDir == "" {
+		confDir = "/data/nginx/conf.d"
+	}
+
+	fileName := fmt.Sprintf("upstream_%s.conf", upstream.Name)
+	filePath := filepath.Join(confDir, fileName)
+
+	if _, err := os.Stat(filePath); err == nil {
+		if err := os.Remove(filePath); err != nil {
+			return fmt.Errorf("删除配置文件失败: %v", err)
+		}
+		log.Printf("Upstream 配置文件已删除: %s", filePath)
+	}
+	return nil
 }

@@ -24,6 +24,7 @@ export interface Site {
   siteType: 'static' | 'proxy' | 'loadbalance'
   rootDir: string
   locations: LocationConfig[] | string  // 可能是数组或JSON字符串
+  upstreamId: number | null             // 关联的负载均衡器ID
   upstreamServers: SiteUpstreamServer[] | string  // 可能是数组或JSON字符串
   sslEnabled: boolean
   certId: number | null
@@ -45,6 +46,7 @@ export interface SiteDto {
   siteType?: 'static' | 'proxy' | 'loadbalance'
   rootDir?: string
   locations?: string  // JSON string
+  upstreamId?: number | null  // 关联的负载均衡器ID
   upstreamServers?: string  // JSON string
   sslEnabled?: boolean
   certId?: number | null
