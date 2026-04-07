@@ -7,7 +7,7 @@ RUN rm -f /etc/apt/sources.list.d/* \
  && echo "deb http://mirrors.tencent.com/ubuntu/ noble-backports main restricted universe multiverse" >> /etc/apt/sources.list
 
 RUN apt-get update \
- && apt-get install -y openjdk-21-jdk wget unzip openssh-server curl git maven \
+ && apt-get install -y wget unzip openssh-server curl git maven \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
