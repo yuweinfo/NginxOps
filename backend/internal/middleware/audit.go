@@ -235,7 +235,13 @@ func buildDetail(requestBody []byte, path string) string {
 					filtered[k] = v
 				}
 			}
-			detail["params"] = filtered
+			// 即使过滤后为空，也只记录非敏感字段
+			if len(filtered) > 0 {
+				detail["params"] = filtered
+			} else {
+				// 如果所有字段都被过滤，至少记录操作已发生（不含敏感信息）
+				detail["params"] = map[string]interface{}{"filtered": "仅包含敏感字段"}
+			}
 		}
 	}
 

@@ -652,143 +652,150 @@ export default function Sites() {
                     </button>
                   </div>
 
-                  {/* 可选的DNS解析功能 */}
-                  {showAdvancedDNS && (
-                    <div className="pl-6 space-y-4 border-l-2 border-muted ml-1.5">
-                      <div className="space-y-2.5">
-                        <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                          <Network className="h-4 w-4" />
-                          服务器IP
-                          <span className="text-xs text-muted-foreground font-normal">（自动解析目标）</span>
-                        </label>
-                        <Popover open={ipPopoverOpen} onOpenChange={setIpPopoverOpen}>
-                          <PopoverTrigger asChild>
-                            <div className="relative">
-                              <Input
-                                placeholder="输入或选择IP地址"
-                                value={serverIP}
-                                onChange={(e) => setServerIP(e.target.value)}
-                                className="h-11 px-4 rounded-xl pr-10"
-                              />
-                              <button 
-                                type="button"
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                                onClick={() => setIpPopoverOpen(!ipPopoverOpen)}
-                              >
-                                <ChevronDown className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-72 p-2" align="start">
-                            <div className="space-y-1">
-                              <div className="text-xs text-muted-foreground px-2 py-1">选择IP地址</div>
-                              {loadingNetwork ? (
-                                <div className="flex items-center justify-center py-4">
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                </div>
-                              ) : (
-                                getAllAvailableIPs().map((item, idx) => (
-                                  <button
-                                    type="button"
-                                    key={idx}
-                                    className={cn(
-                                      "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left hover:bg-muted transition-colors",
-                                      serverIP === item.ip && "bg-muted"
-                                    )}
-                                    onClick={() => {
-                                      setServerIP(item.ip)
-                                      setIpPopoverOpen(false)
-                                    }}
-                                  >
-                                    {item.icon}
-                                    <div className="flex-1 min-w-0">
-                                      <div className="text-sm font-medium">{item.ip}</div>
-                                      <div className="text-xs text-muted-foreground truncate">{item.source}</div>
-                                    </div>
-                                    {serverIP === item.ip && <Check className="h-4 w-4 text-primary" />}
-                                  </button>
-                                ))
-                              )}
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                      
-                      <div className="space-y-2.5">
-                        <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                          <Globe className="h-4 w-4" />
-                          DNS供应商
-                          <span className="text-xs text-muted-foreground font-normal">（解析服务提供商）</span>
-                        </label>
-                        <Select 
-                          value={selectedDnsProvider?.toString() || ''} 
-                          onValueChange={(v) => setSelectedDnsProvider(v ? parseInt(v) : null)}
-                        >
-                          <SelectTrigger className="h-11 px-4 rounded-xl">
-                            <SelectValue placeholder="选择DNS供应商" />
-                          </SelectTrigger>
-                          <SelectContent className="rounded-xl">
-                            {dnsProviders.length === 0 ? (
-                              <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                                暂无DNS供应商配置
+                  {/* 可选的DNS解析功能 - 平滑展开动画 */}
+                  <div 
+                    className={cn(
+                      "grid transition-all duration-300 ease-in-out",
+                      showAdvancedDNS ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                    )}
+                  >
+                    <div className="overflow-hidden">
+                      <div className="pl-6 space-y-4 border-l-2 border-muted ml-1.5 pt-4">
+                        <div className="space-y-2.5">
+                          <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                            <Network className="h-4 w-4" />
+                            服务器IP
+                            <span className="text-xs text-muted-foreground font-normal">（自动解析目标）</span>
+                          </label>
+                          <Popover open={ipPopoverOpen} onOpenChange={setIpPopoverOpen}>
+                            <PopoverTrigger asChild>
+                              <div className="relative">
+                                <Input
+                                  placeholder="输入或选择IP地址"
+                                  value={serverIP}
+                                  onChange={(e) => setServerIP(e.target.value)}
+                                  className="h-11 px-4 rounded-xl pr-10"
+                                />
+                                <button 
+                                  type="button"
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                  onClick={() => setIpPopoverOpen(!ipPopoverOpen)}
+                                >
+                                  <ChevronDown className="h-4 w-4" />
+                                </button>
                               </div>
-                            ) : (
-                              dnsProviders.map((provider) => (
-                                <SelectItem key={provider.id} value={provider.id.toString()}>
-                                  {provider.name} ({provider.providerType})
-                                </SelectItem>
-                              ))
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      {/* DNS解析操作区 */}
-                      {wizardData.domain && showAdvancedDNS && (
-                        selectedDnsProvider && serverIP ? (
-                          <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border">
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-medium text-foreground flex items-center gap-2">
-                                {dnsCreated ? (
-                                  <>
-                                    <Check className="h-4 w-4 text-emerald-500" />
-                                    DNS解析已创建
-                                  </>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-72 p-2" align="start">
+                              <div className="space-y-1">
+                                <div className="text-xs text-muted-foreground px-2 py-1">选择IP地址</div>
+                                {loadingNetwork ? (
+                                  <div className="flex items-center justify-center py-4">
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  </div>
                                 ) : (
-                                  '自动配置DNS解析'
+                                  getAllAvailableIPs().map((item, idx) => (
+                                    <button
+                                      type="button"
+                                      key={idx}
+                                      className={cn(
+                                        "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left hover:bg-muted transition-colors",
+                                        serverIP === item.ip && "bg-muted"
+                                      )}
+                                      onClick={() => {
+                                        setServerIP(item.ip)
+                                        setIpPopoverOpen(false)
+                                      }}
+                                    >
+                                      {item.icon}
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-medium">{item.ip}</div>
+                                        <div className="text-xs text-muted-foreground truncate">{item.source}</div>
+                                      </div>
+                                      {serverIP === item.ip && <Check className="h-4 w-4 text-primary" />}
+                                    </button>
+                                  ))
                                 )}
                               </div>
-                              <div className="text-xs text-muted-foreground truncate mt-0.5">
-                                {wizardData.domain} → {serverIP}
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        
+                        <div className="space-y-2.5">
+                          <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                            <Globe className="h-4 w-4" />
+                            DNS供应商
+                            <span className="text-xs text-muted-foreground font-normal">（解析服务提供商）</span>
+                          </label>
+                          <Select 
+                            value={selectedDnsProvider?.toString() || ''} 
+                            onValueChange={(v) => setSelectedDnsProvider(v ? parseInt(v) : null)}
+                          >
+                            <SelectTrigger className="h-11 px-4 rounded-xl">
+                              <SelectValue placeholder="选择DNS供应商" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl">
+                              {dnsProviders.length === 0 ? (
+                                <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                                  暂无DNS供应商配置
+                                </div>
+                              ) : (
+                                dnsProviders.map((provider) => (
+                                  <SelectItem key={provider.id} value={provider.id.toString()}>
+                                    {provider.name} ({provider.providerType})
+                                  </SelectItem>
+                                ))
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        {/* DNS解析操作区 */}
+                        {wizardData.domain && (
+                          selectedDnsProvider && serverIP ? (
+                            <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border">
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium text-foreground flex items-center gap-2">
+                                  {dnsCreated ? (
+                                    <>
+                                      <Check className="h-4 w-4 text-emerald-500" />
+                                      DNS解析已创建
+                                    </>
+                                  ) : (
+                                    '自动配置DNS解析'
+                                  )}
+                                </div>
+                                <div className="text-xs text-muted-foreground truncate mt-0.5">
+                                  {wizardData.domain} → {serverIP}
+                                </div>
                               </div>
+                              {!dnsCreated && (
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={handleCreateDNSRecord}
+                                  disabled={creatingDNS || !wizardData.domain}
+                                  className="rounded-lg shrink-0 ml-3"
+                                >
+                                  {creatingDNS ? (
+                                    <>
+                                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                      创建中
+                                    </>
+                                  ) : '创建解析'}
+                                </Button>
+                              )}
                             </div>
-                            {!dnsCreated && (
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={handleCreateDNSRecord}
-                                disabled={creatingDNS || !wizardData.domain}
-                                className="rounded-lg shrink-0 ml-3"
-                              >
-                                {creatingDNS ? (
-                                  <>
-                                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                                    创建中
-                                  </>
-                                ) : '创建解析'}
-                              </Button>
-                            )}
-                          </div>
-                        ) : (selectedDnsProvider || serverIP) ? (
-                          <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
-                            <span className="text-xs text-amber-600 dark:text-amber-400">
-                              请同时填写服务器IP和选择DNS供应商以启用自动DNS解析
-                            </span>
-                          </div>
-                        ) : null
-                      )}
+                          ) : (selectedDnsProvider || serverIP) ? (
+                            <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                              <span className="text-xs text-amber-600 dark:text-amber-400">
+                                请同时填写服务器IP和选择DNS供应商以启用自动DNS解析
+                              </span>
+                            </div>
+                          ) : null
+                        )}
+                      </div>
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
 

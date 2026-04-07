@@ -34,6 +34,19 @@ export default function Welcome() {
   const [direction, setDirection] = useState<'left' | 'right'>('right')
   const [checkingStatus, setCheckingStatus] = useState(true)
 
+  // 所有 useState 必须在条件返回之前声明
+  const [useExternalDB, setUseExternalDB] = useState(false)
+  const [dbHost, setDbHost] = useState('')
+  const [dbPort, setDbPort] = useState('5432')
+  const [dbName, setDbName] = useState('nginxops')
+  const [dbUser, setDbUser] = useState('postgres')
+  const [dbPassword, setDbPassword] = useState('')
+  const [jwtSecret, setJwtSecret] = useState('')
+  const [adminUsername, setAdminUsername] = useState('admin')
+  const [adminEmail, setAdminEmail] = useState('')
+  const [adminPassword, setAdminPassword] = useState('')
+  const [copiedCommand, setCopiedCommand] = useState<string | null>(null)
+
   // 检查系统是否已配置，防止已初始化用户重新进入
   useEffect(() => {
     const checkStatus = async () => {
@@ -65,22 +78,9 @@ export default function Welcome() {
     )
   }
 
-  // 表单数据
-  const [useExternalDB, setUseExternalDB] = useState(false)
-  const [dbHost, setDbHost] = useState('')
-  const [dbPort, setDbPort] = useState('5432')
-  const [dbName, setDbName] = useState('nginxops')
-  const [dbUser, setDbUser] = useState('postgres')
-  const [dbPassword, setDbPassword] = useState('')
-  const [jwtSecret, setJwtSecret] = useState('')
-  const [adminUsername, setAdminUsername] = useState('admin')
-  const [adminEmail, setAdminEmail] = useState('')
-  const [adminPassword, setAdminPassword] = useState('')
-
   const currentStepIndex = stepConfig.findIndex(s => s.key === currentStep)
   const progressValue = ((currentStepIndex) / (stepConfig.length - 1)) * 100
   const detectedOS = detectOS()
-  const [copiedCommand, setCopiedCommand] = useState<string | null>(null)
 
   const jwtCommands: Record<string, { label: string; cmd: string }> = {
     mac: { label: 'macOS / Linux', cmd: 'openssl rand -base64 64' },

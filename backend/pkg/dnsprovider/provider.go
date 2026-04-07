@@ -28,6 +28,8 @@ func NewProvider(config ProviderConfig) (DNSProvider, error) {
 		return NewAliyunProvider(config.AccessKeyID, config.AccessKeySecret)
 	case "tencent":
 		return NewTencentProvider(config.AccessKeyID, config.AccessKeySecret)
+	case "cloudflare":
+		return NewCloudflareProvider(config.AccessKeyID)
 	default:
 		return nil, fmt.Errorf("不支持的DNS提供商类型: %s", config.ProviderType)
 	}
