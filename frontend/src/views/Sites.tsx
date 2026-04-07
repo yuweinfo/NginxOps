@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { 
   Plus, Pencil, Trash2, FileText, Globe, FolderOpen, ArrowRightCircle,
-  ChevronRight, ChevronLeft, Server, Shield, Zap, Settings, Check,
+  ChevronRight, Server, Shield, Zap, Settings, Check,
   Layers, ArrowRight, Lock, FileCode, Loader2, RefreshCw, Code,
   Network, ChevronDown, Wifi
 } from 'lucide-react'
@@ -50,6 +50,12 @@ import { certificatesApi, Certificate } from '@/api/certificates'
 import { networkApi, NetworkInterface, DNSProviderInfo } from '@/api/network'
 import { dnsProvidersApi, DnsProvider } from '@/api/dnsProviders'
 
+// 向导表单数据类型 - locations 和 upstreamServers 始终是数组
+interface WizardFormData extends Omit<Partial<Site>, 'locations' | 'upstreamServers'> {
+  locations?: LocationConfig[]
+  upstreamServers?: UpstreamServer[]
+}
+
 // 步骤配置
 const STEPS = [
   { id: 1, title: '基本信息', icon: Globe, description: '域名与端口' },
@@ -77,7 +83,7 @@ export default function Sites() {
   const [deleteTarget, setDeleteTarget] = useState<Site | null>(null)
 
   const [currentStep, setCurrentStep] = useState(1)
-  const [wizardData, setWizardData] = useState<Partial<Site>>({
+  const [wizardData, setWizardData] = useState<WizardFormData>({
     port: 80,
     siteType: 'proxy',
     upstreamServers: [{ address: '', weight: 1, backup: false }],
@@ -440,11 +446,31 @@ export default function Sites() {
     if (site.siteType === 'static' && site.rootDir) {
       return { type: 'dir', value: site.rootDir }
     }
-    if (site.siteType === 'proxy' && site.locations?.length > 0) {
-      return { type: 'proxy', value: site.locations[0].proxyPass }
+    if (site.siteType === 'proxy') {
+      // locations 可能是字符串或数组
+      let locations = site.locations
+      if (typeof locations === 'string') {
+        try {
+          locations = JSON.parse(locations)
+        } catch {
+          locations = []
+        }
+      }
+      if (Array.isArray(locations) && locations.length > 0) {
+        return { type: 'proxy', value: locations[0].proxyPass }
+      }
     }
     if (site.siteType === 'loadbalance') {
-      return { type: 'lb', value: `${site.upstreamServers?.length || 0} 台服务器` }
+      // upstreamServers 可能是字符串或数组
+      let upstreamServers = site.upstreamServers
+      if (typeof upstreamServers === 'string') {
+        try {
+          upstreamServers = JSON.parse(upstreamServers)
+        } catch {
+          upstreamServers = []
+        }
+      }
+      return { type: 'lb', value: `${Array.isArray(upstreamServers) ? upstreamServers.length : 0} 台服务器` }
     }
     return null
   }

@@ -23,8 +23,8 @@ export interface Site {
   port: number
   siteType: 'static' | 'proxy' | 'loadbalance'
   rootDir: string
-  locations: LocationConfig[]
-  upstreamServers: SiteUpstreamServer[]
+  locations: LocationConfig[] | string  // 可能是数组或JSON字符串
+  upstreamServers: SiteUpstreamServer[] | string  // 可能是数组或JSON字符串
   sslEnabled: boolean
   certId: number | null
   forceHttps: boolean
