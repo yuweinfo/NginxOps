@@ -975,7 +975,7 @@ export default function Sites() {
                             </SelectTrigger>
                             <SelectContent className="rounded-xl">
                               {upstreams.map((upstream) => (
-                                <SelectItem key={upstream.id} value={upstream.id.toString()}>
+                                <SelectItem key={upstream.id} value={upstream.id!.toString()}>
                                   {upstream.name} ({upstream.lbMode === 'round_robin' ? '轮询' : upstream.lbMode === 'ip_hash' ? 'IP哈希' : '最少连接'})
                                 </SelectItem>
                               ))}
