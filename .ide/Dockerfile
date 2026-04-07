@@ -11,8 +11,9 @@ RUN apt-get update \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
-# 安装最新版 Go
-RUN wget -O go.tar.gz https://go.dev/dl/go$(curl -s https://go.dev/VERSION?m=text).linux-amd64.tar.gz \
+# 安装 Go 1.26.1
+ENV GO_VERSION=1.26.1
+RUN wget -O go.tar.gz "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" \
  && tar -C /usr/local -xzf go.tar.gz \
  && rm go.tar.gz
 
