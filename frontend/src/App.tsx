@@ -13,6 +13,7 @@ import Logs from './views/Logs'
 import Control from './views/Control'
 import Profile from './views/Profile'
 import Audit from './views/Audit'
+import AccessControl from './views/AccessControl'
 import { Toaster } from './components/ui/toaster'
 import { setupApi } from './api/setup'
 import { Loader2 } from 'lucide-react'
@@ -102,6 +103,7 @@ export default function App() {
             <Route path="certificates" element={<Certificates />} />
             <Route path="logs" element={<Logs />} />
             <Route path="control" element={<Control />} />
+            <Route path="access-control" element={<AccessControl />} />
             <Route path="profile" element={<Profile />} />
             <Route path="audit" element={<Audit />} />
           </Route>

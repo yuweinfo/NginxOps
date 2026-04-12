@@ -12,6 +12,7 @@ import {
   LogOut,
   User,
   Shield,
+  ShieldBan,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -38,6 +39,7 @@ const menuGroups = [
       { value: '/sites', label: '站点配置', icon: Server },
       { value: '/loadbalancer', label: '负载均衡', icon: Network },
       { value: '/certificates', label: '证书管理', icon: Lock },
+      { value: '/access-control', label: '访问控制', icon: ShieldBan },
     ],
   },
   {

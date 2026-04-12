@@ -72,6 +72,7 @@ func main() {
 	dbTestHandler := handler.NewDBTestHandler()
 	networkHandler := handler.NewNetworkHandler()
 	healthHandler := handler.NewHealthHandler()
+	accessControlHandler := handler.NewAccessControlHandler()
 
 	// WebSocket Handler
 	logWsHandler := websocket.NewLogWebSocketHandler()
@@ -210,6 +211,39 @@ func main() {
 		{
 			network.GET("/info", networkHandler.GetNetworkInfo)
 			network.POST("/dns-record", networkHandler.CreateDNSRecord)
+		}
+
+		// 访问控制
+		accessControl := protected.Group("/access-control")
+		{
+			// 全局设置
+			accessControl.GET("/settings", accessControlHandler.GetSettings)
+			accessControl.PUT("/settings", accessControlHandler.UpdateSettings)
+
+			// 全局 IP 黑名单
+			accessControl.GET("/ip-blacklist", accessControlHandler.ListIPBlacklist)
+			accessControl.POST("/ip-blacklist", accessControlHandler.CreateIPBlacklist)
+			accessControl.PUT("/ip-blacklist/:id", accessControlHandler.UpdateIPBlacklist)
+			accessControl.DELETE("/ip-blacklist/:id", accessControlHandler.DeleteIPBlacklist)
+			accessControl.PUT("/ip-blacklist/:id/toggle", accessControlHandler.ToggleIPBlacklist)
+
+			// 全局 Geo 规则
+			accessControl.GET("/geo-rules", accessControlHandler.ListGeoRules)
+			accessControl.POST("/geo-rules", accessControlHandler.CreateGeoRule)
+			accessControl.PUT("/geo-rules/:id", accessControlHandler.UpdateGeoRule)
+			accessControl.DELETE("/geo-rules/:id", accessControlHandler.DeleteGeoRule)
+			accessControl.PUT("/geo-rules/:id/toggle", accessControlHandler.ToggleGeoRule)
+
+			// 站点专属规则
+			accessControl.GET("/sites/:siteId/ip-blacklist", accessControlHandler.ListSiteIPBlacklist)
+			accessControl.POST("/sites/:siteId/ip-blacklist", accessControlHandler.CreateSiteIPBlacklist)
+			accessControl.DELETE("/site-ip-blacklist/:id", accessControlHandler.DeleteSiteIPBlacklist)
+			accessControl.GET("/sites/:siteId/geo-rules", accessControlHandler.ListSiteGeoRules)
+			accessControl.POST("/sites/:siteId/geo-rules", accessControlHandler.CreateSiteGeoRule)
+			accessControl.DELETE("/site-geo-rules/:id", accessControlHandler.DeleteSiteGeoRule)
+
+			// 配置同步
+			accessControl.POST("/sync", accessControlHandler.SyncConfig)
 		}
 	}
 

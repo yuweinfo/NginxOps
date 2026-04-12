@@ -94,6 +94,7 @@ export default function Sites() {
     gzip: true,
     cache: false,
     maxBodySize: 200,
+    accessControlMode: 'inherit',
   })
   const [isEditMode, setIsEditMode] = useState(false) // 是否为编辑模式
   const [useExistingUpstream, setUseExistingUpstream] = useState(false) // 是否使用已定义的负载均衡器
@@ -235,6 +236,7 @@ export default function Sites() {
       gzip: site.gzip || false,
       cache: site.cache || false,
       maxBodySize: site.maxBodySize || 200,
+      accessControlMode: site.accessControlMode || 'inherit',
     })
     setUseExistingUpstream(!!site.upstreamId)
     setWizardOpen(true)
@@ -270,6 +272,7 @@ export default function Sites() {
       gzip: true,
       cache: false,
       maxBodySize: 200,
+      accessControlMode: 'inherit',
     })
     setUseExistingUpstream(false)
     // 重置网络相关状态
@@ -301,6 +304,7 @@ export default function Sites() {
       gzip: wizardData.gzip || false,
       cache: wizardData.cache || false,
       maxBodySize: wizardData.maxBodySize || 200,
+      accessControlMode: wizardData.accessControlMode || 'inherit',
     }
 
     try {
@@ -1107,6 +1111,37 @@ export default function Sites() {
                     />
                     <span className="text-sm text-muted-foreground">MB</span>
                   </div>
+                  <div className="p-5 bg-muted/50 rounded-xl border">
+                    <div className="flex items-center gap-3 mb-3">
+                      <svg className="h-5 w-5 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>
+                      <div>
+                        <div className="text-sm font-medium text-foreground">访问控制</div>
+                        <div className="text-xs text-muted-foreground">Geo/IP 封锁规则</div>
+                      </div>
+                    </div>
+                    <div className="space-y-2 pl-8">
+                      {[
+                        { value: 'inherit', label: '继承全局规则', desc: '使用平台统一的安全策略' },
+                        { value: 'merge', label: '合并规则', desc: '全局规则 + 站点专属规则' },
+                        { value: 'override', label: '自定义规则', desc: '完全覆盖全局，使用站点独立配置' },
+                      ].map((item) => (
+                        <label key={item.value} className="flex items-start gap-3 cursor-pointer p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                          <input
+                            type="radio"
+                            name="accessControlMode"
+                            value={item.value}
+                            checked={wizardData.accessControlMode === item.value}
+                            onChange={() => setWizardData({ ...wizardData, accessControlMode: item.value as 'inherit' | 'merge' | 'override' })}
+                            className="w-4 h-4 mt-0.5"
+                          />
+                          <div>
+                            <div className="text-sm font-medium">{item.label}</div>
+                            <div className="text-xs text-muted-foreground">{item.desc}</div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1119,6 +1154,7 @@ export default function Sites() {
                     <div>端口: {wizardData.port || 80}</div>
                     <div>SSL: {wizardData.certId ? '已配置' : '未配置'}</div>
                     <div>最大上传: {wizardData.maxBodySize || 200} MB</div>
+                    <div>访问控制: {wizardData.accessControlMode === 'inherit' ? '继承全局' : wizardData.accessControlMode === 'merge' ? '合并规则' : '自定义规则'}</div>
                     {wizardData.gzip && <div className="text-emerald-500">✓ Gzip</div>}
                     {wizardData.cache && <div className="text-emerald-500">✓ 缓存</div>}
                   </div>

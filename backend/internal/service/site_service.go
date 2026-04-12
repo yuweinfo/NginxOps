@@ -28,23 +28,24 @@ func NewSiteService() *SiteService {
 }
 
 type SiteDto struct {
-	ID              uint   `json:"id"`
-	FileName        string `json:"fileName"`
-	Domain          string `json:"domain"`
-	Port            int    `json:"port"`
-	SiteType        string `json:"siteType"`
-	RootDir         string `json:"rootDir"`
-	Locations       string `json:"locations"`
-	UpstreamID      *uint  `json:"upstreamId"`
-	UpstreamServers string `json:"upstreamServers"`
-	SSLEnabled      bool   `json:"sslEnabled"`
-	CertID          *uint  `json:"certId"`
-	ForceHttps      bool   `json:"forceHttps"`
-	Gzip            bool   `json:"gzip"`
-	Cache           bool   `json:"cache"`
-	MaxBodySize     int    `json:"maxBodySize"`
-	Enabled         bool   `json:"enabled"`
-	Config          string `json:"config"`
+	ID                uint   `json:"id"`
+	FileName          string `json:"fileName"`
+	Domain            string `json:"domain"`
+	Port              int    `json:"port"`
+	SiteType          string `json:"siteType"`
+	RootDir           string `json:"rootDir"`
+	Locations         string `json:"locations"`
+	UpstreamID        *uint  `json:"upstreamId"`
+	UpstreamServers   string `json:"upstreamServers"`
+	SSLEnabled        bool   `json:"sslEnabled"`
+	CertID            *uint  `json:"certId"`
+	ForceHttps        bool   `json:"forceHttps"`
+	Gzip              bool   `json:"gzip"`
+	Cache             bool   `json:"cache"`
+	MaxBodySize       int    `json:"maxBodySize"`
+	AccessControlMode string `json:"accessControlMode"`
+	Enabled           bool   `json:"enabled"`
+	Config            string `json:"config"`
 }
 
 type PageResult struct {
@@ -70,21 +71,22 @@ func (s *SiteService) GetByID(id uint) (*model.Site, error) {
 
 func (s *SiteService) Create(dto *SiteDto) (*model.Site, error) {
 	site := &model.Site{
-		FileName:        dto.FileName,
-		Domain:          dto.Domain,
-		Port:            dto.Port,
-		SiteType:        dto.SiteType,
-		RootDir:         dto.RootDir,
-		Locations:       dto.Locations,
-		UpstreamID:      dto.UpstreamID,
-		UpstreamServers: dto.UpstreamServers,
-		SSLEnabled:      dto.SSLEnabled,
-		CertID:          dto.CertID,
-		ForceHttps:      dto.ForceHttps,
-		Gzip:            dto.Gzip,
-		Cache:           dto.Cache,
-		MaxBodySize:     dto.MaxBodySize,
-		Enabled:         true,
+		FileName:          dto.FileName,
+		Domain:            dto.Domain,
+		Port:              dto.Port,
+		SiteType:          dto.SiteType,
+		RootDir:           dto.RootDir,
+		Locations:         dto.Locations,
+		UpstreamID:        dto.UpstreamID,
+		UpstreamServers:   dto.UpstreamServers,
+		SSLEnabled:        dto.SSLEnabled,
+		CertID:            dto.CertID,
+		ForceHttps:        dto.ForceHttps,
+		Gzip:              dto.Gzip,
+		Cache:             dto.Cache,
+		MaxBodySize:       dto.MaxBodySize,
+		AccessControlMode: dto.AccessControlMode,
+		Enabled:           true,
 	}
 
 	if site.FileName == "" {
@@ -94,6 +96,9 @@ func (s *SiteService) Create(dto *SiteDto) (*model.Site, error) {
 	// 设置默认值
 	if site.MaxBodySize == 0 {
 		site.MaxBodySize = 200
+	}
+	if site.AccessControlMode == "" {
+		site.AccessControlMode = "inherit"
 	}
 
 	// 先验证配置语法
@@ -132,6 +137,7 @@ func (s *SiteService) Update(id uint, dto *SiteDto) (*model.Site, error) {
 	originalGzip := site.Gzip
 	originalCache := site.Cache
 	originalMaxBodySize := site.MaxBodySize
+	originalAccessControlMode := site.AccessControlMode
 
 	if dto.FileName != "" {
 		site.FileName = dto.FileName
@@ -163,6 +169,9 @@ func (s *SiteService) Update(id uint, dto *SiteDto) (*model.Site, error) {
 	if dto.MaxBodySize > 0 {
 		site.MaxBodySize = dto.MaxBodySize
 	}
+	if dto.AccessControlMode != "" {
+		site.AccessControlMode = dto.AccessControlMode
+	}
 	if dto.Enabled {
 		site.Enabled = true
 	}
@@ -186,6 +195,7 @@ func (s *SiteService) Update(id uint, dto *SiteDto) (*model.Site, error) {
 		site.Gzip = originalGzip
 		site.Cache = originalCache
 		site.MaxBodySize = originalMaxBodySize
+		site.AccessControlMode = originalAccessControlMode
 		return nil, fmt.Errorf("Nginx 配置语法错误: %s", errMsg)
 	}
 
@@ -399,6 +409,13 @@ func (s *SiteService) buildNginxConfig(site *model.Site) string {
 		sb.WriteString("    gzip_min_length 1000;\n\n")
 	}
 
+	// 访问控制配置
+	accessControlConfig := s.buildAccessControlConfig(site)
+	if accessControlConfig != "" {
+		sb.WriteString(accessControlConfig)
+		sb.WriteString("\n")
+	}
+
 	// 根据站点类型生成配置
 	switch siteType {
 	case "static":
@@ -555,4 +572,23 @@ func (s *SiteService) reloadNginx() {
 	} else {
 		log.Println("Nginx配置已重载")
 	}
+}
+
+// buildAccessControlConfig 生成站点访问控制配置片段
+func (s *SiteService) buildAccessControlConfig(site *model.Site) string {
+	// 获取访问控制服务
+	accessControlSvc := NewAccessControlService()
+
+	mode := site.AccessControlMode
+	if mode == "" {
+		mode = "inherit"
+	}
+
+	config, err := accessControlSvc.GetSiteAccessControlConfig(site.ID, mode)
+	if err != nil {
+		log.Printf("获取访问控制配置失败: %v", err)
+		return ""
+	}
+
+	return config
 }

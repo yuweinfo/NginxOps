@@ -32,6 +32,7 @@ export interface Site {
   gzip: boolean
   cache: boolean
   maxBodySize: number                   // 最大上传大小（MB），默认200MB
+  accessControlMode: 'inherit' | 'merge' | 'override'  // 访问控制模式
   enabled: boolean
   config: string
   createdAt?: string
@@ -55,6 +56,7 @@ export interface SiteDto {
   gzip?: boolean
   cache?: boolean
   maxBodySize?: number  // 最大上传大小（MB），默认200MB
+  accessControlMode?: 'inherit' | 'merge' | 'override'  // 访问控制模式
   enabled?: boolean
   config?: string
 }
