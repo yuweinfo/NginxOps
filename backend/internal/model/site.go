@@ -20,6 +20,7 @@ type Site struct {
 	ForceHttps      bool      `json:"forceHttps" gorm:"default:false"`
 	Gzip            bool      `json:"gzip" gorm:"default:false"`
 	Cache           bool      `json:"cache" gorm:"default:false"`
+	MaxBodySize     int       `json:"maxBodySize" gorm:"default:200"`       // 最大上传大小（MB），默认200MB
 	Enabled         bool      `json:"enabled" gorm:"default:true"`
 	Config          string    `json:"config" gorm:"type:text"`
 	CreatedAt       time.Time `json:"createdAt" gorm:"autoCreateTime"`

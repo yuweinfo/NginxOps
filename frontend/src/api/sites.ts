@@ -31,6 +31,7 @@ export interface Site {
   forceHttps: boolean
   gzip: boolean
   cache: boolean
+  maxBodySize: number                   // 最大上传大小（MB），默认200MB
   enabled: boolean
   config: string
   createdAt?: string
@@ -53,6 +54,7 @@ export interface SiteDto {
   forceHttps?: boolean
   gzip?: boolean
   cache?: boolean
+  maxBodySize?: number  // 最大上传大小（MB），默认200MB
   enabled?: boolean
   config?: string
 }

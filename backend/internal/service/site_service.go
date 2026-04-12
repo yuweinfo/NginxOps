@@ -42,6 +42,7 @@ type SiteDto struct {
 	ForceHttps      bool   `json:"forceHttps"`
 	Gzip            bool   `json:"gzip"`
 	Cache           bool   `json:"cache"`
+	MaxBodySize     int    `json:"maxBodySize"`
 	Enabled         bool   `json:"enabled"`
 	Config          string `json:"config"`
 }
@@ -82,11 +83,17 @@ func (s *SiteService) Create(dto *SiteDto) (*model.Site, error) {
 		ForceHttps:      dto.ForceHttps,
 		Gzip:            dto.Gzip,
 		Cache:           dto.Cache,
+		MaxBodySize:     dto.MaxBodySize,
 		Enabled:         true,
 	}
 
 	if site.FileName == "" {
 		site.FileName = strings.Replace(site.Domain, ".", "_", -1) + ".conf"
+	}
+
+	// 设置默认值
+	if site.MaxBodySize == 0 {
+		site.MaxBodySize = 200
 	}
 
 	// 先验证配置语法
@@ -124,6 +131,7 @@ func (s *SiteService) Update(id uint, dto *SiteDto) (*model.Site, error) {
 	originalForceHttps := site.ForceHttps
 	originalGzip := site.Gzip
 	originalCache := site.Cache
+	originalMaxBodySize := site.MaxBodySize
 
 	if dto.FileName != "" {
 		site.FileName = dto.FileName
@@ -152,6 +160,9 @@ func (s *SiteService) Update(id uint, dto *SiteDto) (*model.Site, error) {
 	site.ForceHttps = dto.ForceHttps
 	site.Gzip = dto.Gzip
 	site.Cache = dto.Cache
+	if dto.MaxBodySize > 0 {
+		site.MaxBodySize = dto.MaxBodySize
+	}
 	if dto.Enabled {
 		site.Enabled = true
 	}
@@ -174,6 +185,7 @@ func (s *SiteService) Update(id uint, dto *SiteDto) (*model.Site, error) {
 		site.ForceHttps = originalForceHttps
 		site.Gzip = originalGzip
 		site.Cache = originalCache
+		site.MaxBodySize = originalMaxBodySize
 		return nil, fmt.Errorf("Nginx 配置语法错误: %s", errMsg)
 	}
 
@@ -343,6 +355,13 @@ func (s *SiteService) buildNginxConfig(site *model.Site) string {
 	}
 
 	sb.WriteString(fmt.Sprintf("    server_name %s;\n\n", site.Domain))
+
+	// 最大上传大小配置
+	maxBodySize := site.MaxBodySize
+	if maxBodySize == 0 {
+		maxBodySize = 200 // 默认200MB
+	}
+	sb.WriteString(fmt.Sprintf("    client_max_body_size %dm;\n\n", maxBodySize))
 
 	// SSL 配置
 	if site.SSLEnabled {

@@ -93,6 +93,7 @@ export default function Sites() {
     forceHttps: true,
     gzip: true,
     cache: false,
+    maxBodySize: 200,
   })
   const [isEditMode, setIsEditMode] = useState(false) // 是否为编辑模式
   const [useExistingUpstream, setUseExistingUpstream] = useState(false) // 是否使用已定义的负载均衡器
@@ -233,6 +234,7 @@ export default function Sites() {
       forceHttps: site.forceHttps || false,
       gzip: site.gzip || false,
       cache: site.cache || false,
+      maxBodySize: site.maxBodySize || 200,
     })
     setUseExistingUpstream(!!site.upstreamId)
     setWizardOpen(true)
@@ -267,6 +269,7 @@ export default function Sites() {
       forceHttps: true,
       gzip: true,
       cache: false,
+      maxBodySize: 200,
     })
     setUseExistingUpstream(false)
     // 重置网络相关状态
@@ -297,6 +300,7 @@ export default function Sites() {
       forceHttps: wizardData.forceHttps || false,
       gzip: wizardData.gzip || false,
       cache: wizardData.cache || false,
+      maxBodySize: wizardData.maxBodySize || 200,
     }
 
     try {
@@ -1087,6 +1091,22 @@ export default function Sites() {
                     </div>
                     <input type="checkbox" checked={wizardData.cache} onChange={(e) => setWizardData({ ...wizardData, cache: e.target.checked })} className="w-5 h-5 rounded" />
                   </label>
+                  <div className="flex items-center gap-4 p-5 bg-muted/50 rounded-xl border">
+                    <svg className="h-5 w-5 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-foreground">最大上传大小</div>
+                      <div className="text-xs text-muted-foreground">限制请求体大小（MB）</div>
+                    </div>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="10240"
+                      value={wizardData.maxBodySize || 200}
+                      onChange={(e) => setWizardData({ ...wizardData, maxBodySize: parseInt(e.target.value) || 200 })}
+                      className="w-24 h-9 px-3 rounded-lg text-sm"
+                    />
+                    <span className="text-sm text-muted-foreground">MB</span>
+                  </div>
                 </div>
               )}
 
@@ -1098,6 +1118,7 @@ export default function Sites() {
                     <div className="mt-2">类型: {getSiteTypeLabel(wizardData.siteType || 'proxy')}</div>
                     <div>端口: {wizardData.port || 80}</div>
                     <div>SSL: {wizardData.certId ? '已配置' : '未配置'}</div>
+                    <div>最大上传: {wizardData.maxBodySize || 200} MB</div>
                     {wizardData.gzip && <div className="text-emerald-500">✓ Gzip</div>}
                     {wizardData.cache && <div className="text-emerald-500">✓ 缓存</div>}
                   </div>
