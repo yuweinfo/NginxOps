@@ -1,8 +1,8 @@
 package handler
 
 import (
-	"net/http"
 	"nginxops/internal/service"
+	"nginxops/pkg/response"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -29,10 +29,10 @@ func NewAccessControlHandler() *AccessControlHandler {
 func (h *AccessControlHandler) GetSettings(c *gin.Context) {
 	settings, err := h.svc.GetSettings()
 	if err != nil {
-		InternalServerError(c, "获取设置失败")
+		response.InternalError(c, "获取设置失败")
 		return
 	}
-	Success(c, settings)
+	response.Success(c, settings)
 }
 
 // UpdateSettings 更新全局访问控制设置
@@ -46,16 +46,16 @@ func (h *AccessControlHandler) GetSettings(c *gin.Context) {
 func (h *AccessControlHandler) UpdateSettings(c *gin.Context) {
 	var dto service.SettingsDto
 	if err := c.ShouldBindJSON(&dto); err != nil {
-		BadRequest(c, "无效的请求数据")
+		response.BadRequest(c, "无效的请求数据")
 		return
 	}
 
 	if err := h.svc.UpdateSettings(&dto); err != nil {
-		InternalServerError(c, "更新设置失败: "+err.Error())
+		response.InternalError(c, "更新设置失败: "+err.Error())
 		return
 	}
 
-	Success(c, gin.H{"message": "设置已更新"})
+	response.Success(c, gin.H{"message": "设置已更新"})
 }
 
 // ==================== 全局 IP 黑名单 ====================
@@ -69,10 +69,10 @@ func (h *AccessControlHandler) UpdateSettings(c *gin.Context) {
 func (h *AccessControlHandler) ListIPBlacklist(c *gin.Context) {
 	list, err := h.svc.ListIPBlacklist()
 	if err != nil {
-		InternalServerError(c, "获取 IP 黑名单失败")
+		response.InternalError(c, "获取 IP 黑名单失败")
 		return
 	}
-	Success(c, list)
+	response.Success(c, list)
 }
 
 // CreateIPBlacklist 创建 IP 黑名单项
@@ -86,17 +86,17 @@ func (h *AccessControlHandler) ListIPBlacklist(c *gin.Context) {
 func (h *AccessControlHandler) CreateIPBlacklist(c *gin.Context) {
 	var dto service.IPBlacklistDto
 	if err := c.ShouldBindJSON(&dto); err != nil {
-		BadRequest(c, "无效的请求数据")
+		response.BadRequest(c, "无效的请求数据")
 		return
 	}
 
 	item, err := h.svc.CreateIPBlacklist(&dto)
 	if err != nil {
-		BadRequest(c, err.Error())
+		response.BadRequest(c, err.Error())
 		return
 	}
 
-	Success(c, item)
+	response.Success(c, item)
 }
 
 // UpdateIPBlacklist 更新 IP 黑名单项
@@ -111,23 +111,23 @@ func (h *AccessControlHandler) CreateIPBlacklist(c *gin.Context) {
 func (h *AccessControlHandler) UpdateIPBlacklist(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		BadRequest(c, "无效的 ID")
+		response.BadRequest(c, "无效的 ID")
 		return
 	}
 
 	var dto service.IPBlacklistDto
 	if err := c.ShouldBindJSON(&dto); err != nil {
-		BadRequest(c, "无效的请求数据")
+		response.BadRequest(c, "无效的请求数据")
 		return
 	}
 
 	item, err := h.svc.UpdateIPBlacklist(uint(id), &dto)
 	if err != nil {
-		BadRequest(c, err.Error())
+		response.BadRequest(c, err.Error())
 		return
 	}
 
-	Success(c, item)
+	response.Success(c, item)
 }
 
 // DeleteIPBlacklist 删除 IP 黑名单项
@@ -139,16 +139,16 @@ func (h *AccessControlHandler) UpdateIPBlacklist(c *gin.Context) {
 func (h *AccessControlHandler) DeleteIPBlacklist(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		BadRequest(c, "无效的 ID")
+		response.BadRequest(c, "无效的 ID")
 		return
 	}
 
 	if err := h.svc.DeleteIPBlacklist(uint(id)); err != nil {
-		InternalServerError(c, "删除失败")
+		response.InternalError(c, "删除失败")
 		return
 	}
 
-	Success(c, gin.H{"message": "已删除"})
+	response.Success(c, gin.H{"message": "已删除"})
 }
 
 // ToggleIPBlacklist 启用/禁用 IP 黑名单项
@@ -161,17 +161,17 @@ func (h *AccessControlHandler) DeleteIPBlacklist(c *gin.Context) {
 func (h *AccessControlHandler) ToggleIPBlacklist(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		BadRequest(c, "无效的 ID")
+		response.BadRequest(c, "无效的 ID")
 		return
 	}
 
 	enabled := c.Query("enabled") == "true"
 	if err := h.svc.ToggleIPBlacklist(uint(id), enabled); err != nil {
-		BadRequest(c, err.Error())
+		response.BadRequest(c, err.Error())
 		return
 	}
 
-	Success(c, gin.H{"message": "状态已更新"})
+	response.Success(c, gin.H{"message": "状态已更新"})
 }
 
 // ==================== 全局 Geo 规则 ====================
@@ -185,10 +185,10 @@ func (h *AccessControlHandler) ToggleIPBlacklist(c *gin.Context) {
 func (h *AccessControlHandler) ListGeoRules(c *gin.Context) {
 	list, err := h.svc.ListGeoRules()
 	if err != nil {
-		InternalServerError(c, "获取 Geo 规则失败")
+		response.InternalError(c, "获取 Geo 规则失败")
 		return
 	}
-	Success(c, list)
+	response.Success(c, list)
 }
 
 // CreateGeoRule 创建 Geo 规则
@@ -202,17 +202,17 @@ func (h *AccessControlHandler) ListGeoRules(c *gin.Context) {
 func (h *AccessControlHandler) CreateGeoRule(c *gin.Context) {
 	var dto service.GeoRuleDto
 	if err := c.ShouldBindJSON(&dto); err != nil {
-		BadRequest(c, "无效的请求数据")
+		response.BadRequest(c, "无效的请求数据")
 		return
 	}
 
 	item, err := h.svc.CreateGeoRule(&dto)
 	if err != nil {
-		BadRequest(c, err.Error())
+		response.BadRequest(c, err.Error())
 		return
 	}
 
-	Success(c, item)
+	response.Success(c, item)
 }
 
 // UpdateGeoRule 更新 Geo 规则
@@ -227,23 +227,23 @@ func (h *AccessControlHandler) CreateGeoRule(c *gin.Context) {
 func (h *AccessControlHandler) UpdateGeoRule(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		BadRequest(c, "无效的 ID")
+		response.BadRequest(c, "无效的 ID")
 		return
 	}
 
 	var dto service.GeoRuleDto
 	if err := c.ShouldBindJSON(&dto); err != nil {
-		BadRequest(c, "无效的请求数据")
+		response.BadRequest(c, "无效的请求数据")
 		return
 	}
 
 	item, err := h.svc.UpdateGeoRule(uint(id), &dto)
 	if err != nil {
-		BadRequest(c, err.Error())
+		response.BadRequest(c, err.Error())
 		return
 	}
 
-	Success(c, item)
+	response.Success(c, item)
 }
 
 // DeleteGeoRule 删除 Geo 规则
@@ -255,16 +255,16 @@ func (h *AccessControlHandler) UpdateGeoRule(c *gin.Context) {
 func (h *AccessControlHandler) DeleteGeoRule(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		BadRequest(c, "无效的 ID")
+		response.BadRequest(c, "无效的 ID")
 		return
 	}
 
 	if err := h.svc.DeleteGeoRule(uint(id)); err != nil {
-		InternalServerError(c, "删除失败")
+		response.InternalError(c, "删除失败")
 		return
 	}
 
-	Success(c, gin.H{"message": "已删除"})
+	response.Success(c, gin.H{"message": "已删除"})
 }
 
 // ToggleGeoRule 启用/禁用 Geo 规则
@@ -277,17 +277,17 @@ func (h *AccessControlHandler) DeleteGeoRule(c *gin.Context) {
 func (h *AccessControlHandler) ToggleGeoRule(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		BadRequest(c, "无效的 ID")
+		response.BadRequest(c, "无效的 ID")
 		return
 	}
 
 	enabled := c.Query("enabled") == "true"
 	if err := h.svc.ToggleGeoRule(uint(id), enabled); err != nil {
-		BadRequest(c, err.Error())
+		response.BadRequest(c, err.Error())
 		return
 	}
 
-	Success(c, gin.H{"message": "状态已更新"})
+	response.Success(c, gin.H{"message": "状态已更新"})
 }
 
 // ==================== 站点专属 IP 黑名单 ====================
@@ -302,16 +302,16 @@ func (h *AccessControlHandler) ToggleGeoRule(c *gin.Context) {
 func (h *AccessControlHandler) ListSiteIPBlacklist(c *gin.Context) {
 	siteID, err := strconv.ParseUint(c.Param("siteId"), 10, 32)
 	if err != nil {
-		BadRequest(c, "无效的站点 ID")
+		response.BadRequest(c, "无效的站点 ID")
 		return
 	}
 
 	list, err := h.svc.ListSiteIPBlacklist(uint(siteID))
 	if err != nil {
-		InternalServerError(c, "获取站点 IP 黑名单失败")
+		response.InternalError(c, "获取站点 IP 黑名单失败")
 		return
 	}
-	Success(c, list)
+	response.Success(c, list)
 }
 
 // CreateSiteIPBlacklist 创建站点 IP 黑名单项
@@ -326,24 +326,24 @@ func (h *AccessControlHandler) ListSiteIPBlacklist(c *gin.Context) {
 func (h *AccessControlHandler) CreateSiteIPBlacklist(c *gin.Context) {
 	siteID, err := strconv.ParseUint(c.Param("siteId"), 10, 32)
 	if err != nil {
-		BadRequest(c, "无效的站点 ID")
+		response.BadRequest(c, "无效的站点 ID")
 		return
 	}
 
 	var dto service.SiteIPBlacklistDto
 	if err := c.ShouldBindJSON(&dto); err != nil {
-		BadRequest(c, "无效的请求数据")
+		response.BadRequest(c, "无效的请求数据")
 		return
 	}
 	dto.SiteID = uint(siteID)
 
 	item, err := h.svc.CreateSiteIPBlacklist(&dto)
 	if err != nil {
-		BadRequest(c, err.Error())
+		response.BadRequest(c, err.Error())
 		return
 	}
 
-	Success(c, item)
+	response.Success(c, item)
 }
 
 // DeleteSiteIPBlacklist 删除站点 IP 黑名单项
@@ -355,16 +355,16 @@ func (h *AccessControlHandler) CreateSiteIPBlacklist(c *gin.Context) {
 func (h *AccessControlHandler) DeleteSiteIPBlacklist(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		BadRequest(c, "无效的 ID")
+		response.BadRequest(c, "无效的 ID")
 		return
 	}
 
 	if err := h.svc.DeleteSiteIPBlacklist(uint(id)); err != nil {
-		InternalServerError(c, "删除失败")
+		response.InternalError(c, "删除失败")
 		return
 	}
 
-	Success(c, gin.H{"message": "已删除"})
+	response.Success(c, gin.H{"message": "已删除"})
 }
 
 // ==================== 站点专属 Geo 规则 ====================
@@ -379,16 +379,16 @@ func (h *AccessControlHandler) DeleteSiteIPBlacklist(c *gin.Context) {
 func (h *AccessControlHandler) ListSiteGeoRules(c *gin.Context) {
 	siteID, err := strconv.ParseUint(c.Param("siteId"), 10, 32)
 	if err != nil {
-		BadRequest(c, "无效的站点 ID")
+		response.BadRequest(c, "无效的站点 ID")
 		return
 	}
 
 	list, err := h.svc.ListSiteGeoRules(uint(siteID))
 	if err != nil {
-		InternalServerError(c, "获取站点 Geo 规则失败")
+		response.InternalError(c, "获取站点 Geo 规则失败")
 		return
 	}
-	Success(c, list)
+	response.Success(c, list)
 }
 
 // CreateSiteGeoRule 创建站点 Geo 规则
@@ -403,24 +403,24 @@ func (h *AccessControlHandler) ListSiteGeoRules(c *gin.Context) {
 func (h *AccessControlHandler) CreateSiteGeoRule(c *gin.Context) {
 	siteID, err := strconv.ParseUint(c.Param("siteId"), 10, 32)
 	if err != nil {
-		BadRequest(c, "无效的站点 ID")
+		response.BadRequest(c, "无效的站点 ID")
 		return
 	}
 
 	var dto service.SiteGeoRuleDto
 	if err := c.ShouldBindJSON(&dto); err != nil {
-		BadRequest(c, "无效的请求数据")
+		response.BadRequest(c, "无效的请求数据")
 		return
 	}
 	dto.SiteID = uint(siteID)
 
 	item, err := h.svc.CreateSiteGeoRule(&dto)
 	if err != nil {
-		BadRequest(c, err.Error())
+		response.BadRequest(c, err.Error())
 		return
 	}
 
-	Success(c, item)
+	response.Success(c, item)
 }
 
 // DeleteSiteGeoRule 删除站点 Geo 规则
@@ -432,16 +432,16 @@ func (h *AccessControlHandler) CreateSiteGeoRule(c *gin.Context) {
 func (h *AccessControlHandler) DeleteSiteGeoRule(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		BadRequest(c, "无效的 ID")
+		response.BadRequest(c, "无效的 ID")
 		return
 	}
 
 	if err := h.svc.DeleteSiteGeoRule(uint(id)); err != nil {
-		InternalServerError(c, "删除失败")
+		response.InternalError(c, "删除失败")
 		return
 	}
 
-	Success(c, gin.H{"message": "已删除"})
+	response.Success(c, gin.H{"message": "已删除"})
 }
 
 // ==================== 配置同步 ====================
@@ -453,8 +453,8 @@ func (h *AccessControlHandler) DeleteSiteGeoRule(c *gin.Context) {
 // @Router /api/access-control/sync [post]
 func (h *AccessControlHandler) SyncConfig(c *gin.Context) {
 	if err := h.svc.SyncConfig(); err != nil {
-		InternalServerError(c, "同步配置失败: "+err.Error())
+		response.InternalError(c, "同步配置失败: "+err.Error())
 		return
 	}
-	Success(c, gin.H{"message": "配置已同步到 Nginx"})
+	response.Success(c, gin.H{"message": "配置已同步到 Nginx"})
 }
