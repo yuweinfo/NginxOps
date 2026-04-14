@@ -198,6 +198,23 @@ func (s *NginxService) ValidateConfig(configContent string) (bool, string) {
 						ioutil.WriteFile(dstPath, data, 0644)
 					}
 				}
+			} else if f.IsDir() {
+				// 复制子目录（如 access-control）
+				subDir := filepath.Join(confDir, f.Name())
+				testSubDir := filepath.Join(testConfDir, f.Name())
+				if err := os.MkdirAll(testSubDir, 0755); err == nil {
+					if subFiles, err := ioutil.ReadDir(subDir); err == nil {
+						for _, sf := range subFiles {
+							if !sf.IsDir() && strings.HasSuffix(sf.Name(), ".conf") {
+								srcPath := filepath.Join(subDir, sf.Name())
+								dstPath := filepath.Join(testSubDir, sf.Name())
+								if data, err := ioutil.ReadFile(srcPath); err == nil {
+									ioutil.WriteFile(dstPath, data, 0644)
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 	}
