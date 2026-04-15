@@ -437,8 +437,8 @@ func (s *AccessRuleService) syncAllSiteConfigs(confDir string) error {
 		if strings.HasPrefix(name, "site_") && (strings.HasSuffix(name, "_geo.conf") || strings.HasSuffix(name, "_ip_blacklist.conf") || strings.HasSuffix(name, "_ip_access.conf")) {
 			os.Remove(filepath.Join(confDir, name))
 		}
-		// 删除旧的全局 IP 黑名单文件（已改名为 global_ip_access.conf）
-		if name == "global_ip_blacklist.conf" {
+		// 删除旧的全局文件（已移到 nginx.conf 主配置中）
+		if name == "global_ip_blacklist.conf" || name == "_global_real_ip_map.conf" {
 			os.Remove(filepath.Join(confDir, name))
 		}
 	}
@@ -447,10 +447,9 @@ func (s *AccessRuleService) syncAllSiteConfigs(confDir string) error {
 }
 
 // generateSiteConditions 生成站点访问控制条件判断
-// 策略：
-// - 当只有 IP 黑名单时：Nginx 层 geo+if 快速拦截（纯 Nginx，高性能）
-// - 当有 IP 白名单和/或 Geo 规则时：全部通过 auth_request 后端统一检查
-//   （后端处理白名单优先、黑名单、Geo 的完整逻辑）
+// 策略（network_mode: host 下 $remote_addr 即为真实客户端 IP）：
+// - 仅 IP 黑名单：Nginx 层 geo+if 快速拦截（纯 Nginx，高性能）
+// - 有 IP 白名单和/或 Geo 规则：通过 auth_request 后端统一检查
 func (s *AccessRuleService) generateSiteConditions(siteID uint, merged *MergedAccessRules) string {
 	var sb strings.Builder
 	sb.WriteString("    # 访问控制规则\n")
@@ -464,15 +463,6 @@ func (s *AccessRuleService) generateSiteConditions(siteID uint, merged *MergedAc
 		return ""
 	}
 
-	// 真实 IP 获取（Docker 端口映射模式下必需，必须在 geo 指令之前）
-	sb.WriteString("    # 获取真实客户端 IP\n")
-	sb.WriteString("    set_real_ip_from 10.0.0.0/8;\n")
-	sb.WriteString("    set_real_ip_from 172.16.0.0/12;\n")
-	sb.WriteString("    set_real_ip_from 192.168.0.0/16;\n")
-	sb.WriteString("    set_real_ip_from 127.0.0.1;\n")
-	sb.WriteString("    real_ip_header X-Forwarded-For;\n")
-	sb.WriteString("    real_ip_recursive on;\n\n")
-
 	// 生成站点专属 IP 配置文件（geo 指令必须在 http 块中）
 	if hasBlockedIPs || hasAllowedIPs {
 		s.generateSiteIPConfig(siteID, merged)
@@ -481,23 +471,22 @@ func (s *AccessRuleService) generateSiteConditions(siteID uint, merged *MergedAc
 	onlyBlockedIPs := hasBlockedIPs && !hasAllowedIPs && !hasGeo
 
 	if onlyBlockedIPs {
-		// 简单场景：只有 IP 黑名单，Nginx 层直接拦截（高性能）
-		sb.WriteString(fmt.Sprintf("    # IP 黑名单 - 直接拒绝\n"))
+		// 简单场景：仅 IP 黑名单，Nginx 层直接拦截（高性能）
+		sb.WriteString("    # IP 黑名单 - 直接拒绝\n")
 		sb.WriteString(fmt.Sprintf("    if ($site_%d_blocked_ip) { return 403; }\n", siteID))
 	} else {
-		// 复杂场景：有白名单和/或 Geo 规则，统一通过 auth_request 后端检查
-		// 后端逻辑：白名单优先 -> 黑名单 -> Geo 规则
+		// 复杂场景：有白名单和/或 Geo 规则，通过 auth_request 后端统一检查
 		sb.WriteString("    # 访问控制 - 通过后端 API 统一检查\n")
 		sb.WriteString("    # 后端处理优先级：IP 白名单 > IP 黑名单 > Geo 规则\n")
 		sb.WriteString(fmt.Sprintf("    auth_request /access-control-check/site/%d;\n", siteID))
 
-		// Nginx 层仍然做黑名单快速拦截（作为额外保障）
+		// Nginx 层黑名单快速拦截（作为额外保障）
 		if hasBlockedIPs {
-			sb.WriteString(fmt.Sprintf("    # IP 黑名单 - Nginx 层快速拦截（后端也会检查）\n"))
+			sb.WriteString("    # IP 黑名单 - Nginx 层快速拦截\n")
 			sb.WriteString(fmt.Sprintf("    if ($site_%d_blocked_ip) { return 403; }\n", siteID))
 		}
 
-		// 添加 auth_request 代理端点
+		// auth_request 代理端点
 		sb.WriteString("\n    # auth_request 代理端点（internal）\n")
 		sb.WriteString("    location /access-control-check/ {\n")
 		sb.WriteString("        internal;\n")
@@ -516,11 +505,12 @@ func (s *AccessRuleService) generateSiteConditions(siteID uint, merged *MergedAc
 }
 
 // generateSiteIPConfig 生成站点 IP 访问控制 geo 配置文件
+// network_mode: host 下 $remote_addr 即为真实客户端 IP，geo 直接基于 $remote_addr
 func (s *AccessRuleService) generateSiteIPConfig(siteID uint, merged *MergedAccessRules) {
 	confDir := filepath.Join(config.AppConfig.Nginx.ConfDir, "access-control")
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("# 站点 %d IP 访问控制配置\n", siteID))
+	sb.WriteString(fmt.Sprintf("# 站点 %d IP 访问控制配置\n\n", siteID))
 
 	// 黑名单 geo
 	sb.WriteString(fmt.Sprintf("geo $site_%d_blocked_ip {\n", siteID))
@@ -543,9 +533,10 @@ func (s *AccessRuleService) generateSiteIPConfig(siteID uint, merged *MergedAcce
 		log.Printf("写入站点 IP 访问控制配置失败: %v", err)
 	}
 
-	// 清理旧的单用途文件
+	// 清理旧的配置文件
 	os.Remove(filepath.Join(confDir, fmt.Sprintf("site_%d_ip_blacklist.conf", siteID)))
 	os.Remove(filepath.Join(confDir, fmt.Sprintf("site_%d_geo.conf", siteID)))
+	os.Remove(filepath.Join(confDir, "_global_real_ip_map.conf"))
 }
 
 func (s *AccessRuleService) reloadNginx() {

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"nginxops/internal/service"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,16 +27,9 @@ func (h *AccessCheckHandler) CheckSiteAccess(c *gin.Context) {
 		return
 	}
 
-	// 获取客户端真实 IP
+	// network_mode: host 下，$remote_addr 即为真实客户端 IP
+	// Nginx 通过 X-Real-IP 传递客户端 IP
 	clientIP := c.GetHeader("X-Real-IP")
-	if clientIP == "" {
-		clientIP = c.GetHeader("X-Forwarded-For")
-		if clientIP != "" {
-			// X-Forwarded-For 可能包含多个 IP，取第一个
-			parts := strings.Split(clientIP, ",")
-			clientIP = strings.TrimSpace(parts[0])
-		}
-	}
 	if clientIP == "" {
 		clientIP = c.ClientIP()
 	}

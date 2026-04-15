@@ -1,15 +1,9 @@
 services:
-  # 主服务 
   nginxops:
     image: docker.cnb.cool/yuweinfo/nginxops:latest
     container_name: nginxops
     restart: unless-stopped
-    ports:
-      # 管理面板端口
-      - "${ADMIN_PORT:-8899}:8899"
-      # 业务代理端口 (HTTP/HTTPS)
-      - "${HTTP_PORT:-80}:80"
-      - "${HTTPS_PORT:-443}:443"
+    network_mode: host
     volumes:
       - nginxops-data:/data
     healthcheck:
@@ -18,13 +12,6 @@ services:
       timeout: 10s
       start_period: 120s
       retries: 3
-    networks:
-      - nginxops-net
-
-networks:
-  nginxops-net:
-    driver: bridge
-    name: nginxops-net
 
 volumes:
   nginxops-data:
