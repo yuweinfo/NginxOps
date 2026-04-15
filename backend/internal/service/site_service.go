@@ -44,6 +44,7 @@ type SiteDto struct {
 	Cache             bool   `json:"cache"`
 	MaxBodySize       int    `json:"maxBodySize"`
 	AccessControlMode string `json:"accessControlMode"`
+	AccessRuleIDs     []uint `json:"accessRuleIds"`
 	Enabled           bool   `json:"enabled"`
 	Config            string `json:"config"`
 }
@@ -98,7 +99,7 @@ func (s *SiteService) Create(dto *SiteDto) (*model.Site, error) {
 		site.MaxBodySize = 200
 	}
 	if site.AccessControlMode == "" {
-		site.AccessControlMode = "inherit"
+		site.AccessControlMode = "custom"
 	}
 
 	// 先验证配置语法
@@ -110,6 +111,14 @@ func (s *SiteService) Create(dto *SiteDto) (*model.Site, error) {
 
 	if err := s.siteRepo.Create(site); err != nil {
 		return nil, err
+	}
+
+	// 关联访问规则
+	if len(dto.AccessRuleIDs) > 0 {
+		accessRuleSvc := NewAccessRuleService()
+		if err := accessRuleSvc.SetSiteRules(site.ID, &SetSiteRulesDto{RuleIDs: dto.AccessRuleIDs}); err != nil {
+			log.Printf("设置站点访问规则失败: %v", err)
+		}
 	}
 
 	s.writeConfigAndReload(site)
@@ -201,6 +210,14 @@ func (s *SiteService) Update(id uint, dto *SiteDto) (*model.Site, error) {
 
 	if err := s.siteRepo.Update(site); err != nil {
 		return nil, err
+	}
+
+	// 更新访问规则关联
+	if dto.AccessRuleIDs != nil {
+		accessRuleSvc := NewAccessRuleService()
+		if err := accessRuleSvc.SetSiteRules(site.ID, &SetSiteRulesDto{RuleIDs: dto.AccessRuleIDs}); err != nil {
+			log.Printf("更新站点访问规则失败: %v", err)
+		}
 	}
 
 	s.writeConfigAndReload(site)
@@ -576,15 +593,10 @@ func (s *SiteService) reloadNginx() {
 
 // buildAccessControlConfig 生成站点访问控制配置片段
 func (s *SiteService) buildAccessControlConfig(site *model.Site) string {
-	// 获取访问控制服务
-	accessControlSvc := NewAccessControlService()
+	// 使用新的访问规则服务
+	accessRuleSvc := NewAccessRuleService()
 
-	mode := site.AccessControlMode
-	if mode == "" {
-		mode = "inherit"
-	}
-
-	config, err := accessControlSvc.GetSiteAccessControlConfig(site.ID, mode)
+	config, err := accessRuleSvc.GetSiteAccessControlConfig(site.ID)
 	if err != nil {
 		log.Printf("获取访问控制配置失败: %v", err)
 		return ""

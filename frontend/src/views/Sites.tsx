@@ -50,11 +50,13 @@ import { certificatesApi, Certificate } from '@/api/certificates'
 import { networkApi, NetworkInterface, DNSProviderInfo } from '@/api/network'
 import { dnsProvidersApi, DnsProvider } from '@/api/dnsProviders'
 import { upstreamsApi, Upstream } from '@/api/upstreams'
+import { accessRuleApi, AccessRuleSummary } from '@/api/accessRules'
 
 // 向导表单数据类型 - locations 和 upstreamServers 始终是数组
-interface WizardFormData extends Omit<Partial<Site>, 'locations' | 'upstreamServers'> {
+interface WizardFormData extends Omit<Partial<Site>, 'locations' | 'upstreamServers' | 'accessRuleIds'> {
   locations?: LocationConfig[]
   upstreamServers?: UpstreamServer[]
+  accessRuleIds?: number[]
 }
 
 // 步骤配置
@@ -94,7 +96,7 @@ export default function Sites() {
     gzip: true,
     cache: false,
     maxBodySize: 200,
-    accessControlMode: 'inherit',
+    accessRuleIds: [],
   })
   const [isEditMode, setIsEditMode] = useState(false) // 是否为编辑模式
   const [useExistingUpstream, setUseExistingUpstream] = useState(false) // 是否使用已定义的负载均衡器
@@ -116,18 +118,22 @@ export default function Sites() {
   // 负载均衡器列表
   const [upstreams, setUpstreams] = useState<Upstream[]>([])
 
+  // 访问规则列表
+  const [accessRules, setAccessRules] = useState<AccessRuleSummary[]>([])
   // 加载数据
   const loadData = useCallback(async () => {
     try {
       setLoading(true)
-      const [sitesRes, certsRes, upstreamsRes] = await Promise.all([
+      const [sitesRes, certsRes, upstreamsRes, accessRulesRes] = await Promise.all([
         sitesApi.list(),
         certificatesApi.list(),
-        upstreamsApi.list()
+        upstreamsApi.list(),
+        accessRuleApi.list()
       ])
       setSites(sitesRes.data)
       setCerts(certsRes.data)
       setUpstreams(upstreamsRes.data || [])
+      setAccessRules(accessRulesRes.data || [])
     } catch (error) {
       toast({ title: '数据加载失败', variant: 'destructive' })
     } finally {
@@ -193,7 +199,7 @@ export default function Sites() {
   }
 
   // 打开向导编辑模式
-  const openWizardEdit = (site: Site) => {
+  const openWizardEdit = async (site: Site) => {
     setEditingSite(site)
     setIsEditMode(true)
     setCurrentStep(1)
@@ -217,6 +223,17 @@ export default function Sites() {
       }
     }
 
+    // 获取站点关联的规则ID
+    let ruleIds: number[] = site.accessRuleIds || []
+    if (site.id) {
+      try {
+        const res = await accessRuleApi.getSiteRuleIds(site.id)
+        ruleIds = res.data || []
+      } catch {
+        ruleIds = []
+      }
+    }
+
     // 预填充现有数据
     setWizardData({
       id: site.id,
@@ -236,7 +253,7 @@ export default function Sites() {
       gzip: site.gzip || false,
       cache: site.cache || false,
       maxBodySize: site.maxBodySize || 200,
-      accessControlMode: site.accessControlMode || 'inherit',
+      accessRuleIds: ruleIds,
     })
     setUseExistingUpstream(!!site.upstreamId)
     setWizardOpen(true)
@@ -272,7 +289,7 @@ export default function Sites() {
       gzip: true,
       cache: false,
       maxBodySize: 200,
-      accessControlMode: 'inherit',
+      accessRuleIds: [],
     })
     setUseExistingUpstream(false)
     // 重置网络相关状态
@@ -304,7 +321,8 @@ export default function Sites() {
       gzip: wizardData.gzip || false,
       cache: wizardData.cache || false,
       maxBodySize: wizardData.maxBodySize || 200,
-      accessControlMode: wizardData.accessControlMode || 'inherit',
+      accessControlMode: 'custom' as const,
+      accessRuleIds: wizardData.accessRuleIds || [],
     }
 
     try {
@@ -1113,34 +1131,51 @@ export default function Sites() {
                   </div>
                   <div className="p-5 bg-muted/50 rounded-xl border">
                     <div className="flex items-center gap-3 mb-3">
-                      <svg className="h-5 w-5 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>
+                      <Shield className="h-5 w-5 text-muted-foreground" />
                       <div>
                         <div className="text-sm font-medium text-foreground">访问控制</div>
-                        <div className="text-xs text-muted-foreground">Geo/IP 封锁规则</div>
+                        <div className="text-xs text-muted-foreground">选择要应用的访问规则（可多选，规则自动合并）</div>
                       </div>
                     </div>
-                    <div className="space-y-2 pl-8">
-                      {[
-                        { value: 'inherit', label: '继承全局规则', desc: '使用平台统一的安全策略' },
-                        { value: 'merge', label: '合并规则', desc: '全局规则 + 站点专属规则' },
-                        { value: 'override', label: '自定义规则', desc: '完全覆盖全局，使用站点独立配置' },
-                      ].map((item) => (
-                        <label key={item.value} className="flex items-start gap-3 cursor-pointer p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                          <input
-                            type="radio"
-                            name="accessControlMode"
-                            value={item.value}
-                            checked={wizardData.accessControlMode === item.value}
-                            onChange={() => setWizardData({ ...wizardData, accessControlMode: item.value as 'inherit' | 'merge' | 'override' })}
-                            className="w-4 h-4 mt-0.5"
-                          />
-                          <div>
-                            <div className="text-sm font-medium">{item.label}</div>
-                            <div className="text-xs text-muted-foreground">{item.desc}</div>
-                          </div>
-                        </label>
-                      ))}
+                    <div className="space-y-2 pl-8 max-h-[200px] overflow-y-auto">
+                      {accessRules.filter(r => r.enabled).length === 0 ? (
+                        <div className="text-sm text-muted-foreground py-2">
+                          暂无启用的访问规则，请先在"访问控制"页面创建规则
+                        </div>
+                      ) : (
+                        accessRules.filter(r => r.enabled).map((rule) => (
+                          <label key={rule.id} className="flex items-center gap-3 cursor-pointer p-2.5 rounded-lg hover:bg-muted/50 transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={(wizardData.accessRuleIds || []).includes(rule.id)}
+                              onChange={(e) => {
+                                const currentIds = wizardData.accessRuleIds || []
+                                const newIds = e.target.checked
+                                  ? [...currentIds, rule.id]
+                                  : currentIds.filter(id => id !== rule.id)
+                                setWizardData({ ...wizardData, accessRuleIds: newIds })
+                              }}
+                              className="w-4 h-4 rounded"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium">{rule.name}</div>
+                              <div className="text-xs text-muted-foreground truncate">
+                                {rule.ipCount > 0 && `${rule.ipCount} IP`}
+                                {rule.ipCount > 0 && rule.geoCount > 0 && ' · '}
+                                {rule.geoCount > 0 && `${rule.geoCount} 地区`}
+                              </div>
+                            </div>
+                          </label>
+                        ))
+                      )}
                     </div>
+                    {(wizardData.accessRuleIds || []).length > 0 && (
+                      <div className="mt-2 pl-8">
+                        <Badge variant="secondary" className="text-xs">
+                          已选择 {(wizardData.accessRuleIds || []).length} 条规则
+                        </Badge>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1154,13 +1189,18 @@ export default function Sites() {
                     <div>端口: {wizardData.port || 80}</div>
                     <div>SSL: {wizardData.certId ? '已配置' : '未配置'}</div>
                     <div>最大上传: {wizardData.maxBodySize || 200} MB</div>
-                    <div>访问控制: {wizardData.accessControlMode === 'inherit' ? '继承全局' : wizardData.accessControlMode === 'merge' ? '合并规则' : '自定义规则'}</div>
+                    <div>访问控制: {(wizardData.accessRuleIds || []).length > 0
+                      ? `${(wizardData.accessRuleIds || []).length} 条规则`
+                      : '未配置'}</div>
                     {wizardData.gzip && <div className="text-emerald-500">✓ Gzip</div>}
                     {wizardData.cache && <div className="text-emerald-500">✓ 缓存</div>}
                   </div>
                   <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
                     <span className="px-3 py-1 bg-muted rounded-full">{wizardData.domain}</span>
                     {wizardData.certId && <Badge variant="secondary" className="text-emerald-500">HTTPS</Badge>}
+                    {(wizardData.accessRuleIds || []).length > 0 && (
+                      <Badge variant="outline" className="text-primary">{(wizardData.accessRuleIds || []).length} 条访问规则</Badge>
+                    )}
                   </div>
                 </div>
               )}

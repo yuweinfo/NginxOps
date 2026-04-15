@@ -73,6 +73,7 @@ func main() {
 	networkHandler := handler.NewNetworkHandler()
 	healthHandler := handler.NewHealthHandler()
 	accessControlHandler := handler.NewAccessControlHandler()
+	accessRuleHandler := handler.NewAccessRuleHandler()
 
 	// WebSocket Handler
 	logWsHandler := websocket.NewLogWebSocketHandler()
@@ -244,6 +245,25 @@ func main() {
 
 			// 配置同步
 			accessControl.POST("/sync", accessControlHandler.SyncConfig)
+		}
+
+		// 访问规则（新设计：规则列表模式）
+		accessRules := protected.Group("/access-rules")
+		{
+			// 规则 CRUD
+			accessRules.GET("", accessRuleHandler.ListRules)
+			accessRules.GET("/:id", accessRuleHandler.GetRule)
+			accessRules.POST("", accessRuleHandler.CreateRule)
+			accessRules.PUT("/:id", accessRuleHandler.UpdateRule)
+			accessRules.DELETE("/:id", accessRuleHandler.DeleteRule)
+			accessRules.PUT("/:id/toggle", accessRuleHandler.ToggleRule)
+
+			// 站点-规则关联
+			accessRules.GET("/sites/:siteId/rules", accessRuleHandler.GetSiteRules)
+			accessRules.PUT("/sites/:siteId/rules", accessRuleHandler.SetSiteRules)
+
+			// 配置同步
+			accessRules.POST("/sync", accessRuleHandler.SyncConfig)
 		}
 	}
 

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { 
-  Shield, Globe, Ban, Plus, Trash2, RefreshCw, 
-  Settings, Lock, Unlock, Loader2, ToggleLeft, ToggleRight
+import {
+  Shield, Plus, Trash2, RefreshCw,
+  Settings, Globe, Ban, Loader2, ToggleLeft, ToggleRight,
+  Pencil, ChevronDown, ChevronUp, X
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -38,58 +39,43 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import {
-  accessControlApi,
-  AccessControlSettings,
-  IPBlacklistItem,
-  GeoRuleItem,
-  getCountryInfo,
-  COUNTRY_CODES,
-} from '@/api/accessControl'
+  accessRuleApi,
+  AccessRuleSummary,
+  AccessRule,
+  AccessRuleItem,
+  AccessRuleDto,
+} from '@/api/accessRules'
+import { COUNTRY_CODES, getCountryInfo } from '@/api/accessControl'
 
 export default function AccessControl() {
   const { toast } = useToast()
-  
+
   // 状态
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
-  
-  // 全局设置
-  const [settings, setSettings] = useState<AccessControlSettings>({
-    geoEnabled: false,
-    ipBlacklistEnabled: false,
-    defaultAction: 'allow',
-  })
-  
-  // IP 黑名单
-  const [ipBlacklist, setIPBlacklist] = useState<IPBlacklistItem[]>([])
-  
-  // Geo 规则
-  const [geoRules, setGeoRules] = useState<GeoRuleItem[]>([])
-  
+  const [rules, setRules] = useState<AccessRuleSummary[]>([])
+
   // 对话框状态
-  const [ipDialogOpen, setIPDialogOpen] = useState(false)
-  const [geoDialogOpen, setGeoDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [editingIP, setEditingIP] = useState<IPBlacklistItem | null>(null)
-  const [editingGeo, setEditingGeo] = useState<GeoRuleItem | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<{ type: 'ip' | 'geo'; id: number } | null>(null)
-  
+  const [editingRule, setEditingRule] = useState<AccessRule | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<AccessRuleSummary | null>(null)
+  const [expandedRuleId, setExpandedRuleId] = useState<number | null>(null)
+
   // 表单数据
-  const [ipForm, setIPForm] = useState({ ipAddress: '', note: '' })
-  const [geoForm, setGeoForm] = useState({ countryCode: '', action: 'block' as 'allow' | 'block', note: '' })
+  const [form, setForm] = useState<AccessRuleDto>({
+    name: '',
+    description: '',
+    enabled: true,
+    items: [],
+  })
 
   // 加载数据
   const loadData = async () => {
     try {
       setLoading(true)
-      const [settingsRes, ipRes, geoRes] = await Promise.all([
-        accessControlApi.getSettings(),
-        accessControlApi.listIPBlacklist(),
-        accessControlApi.listGeoRules(),
-      ])
-      setSettings(settingsRes.data)
-      setIPBlacklist(ipRes.data || [])
-      setGeoRules(geoRes.data || [])
+      const res = await accessRuleApi.list()
+      setRules(res.data || [])
     } catch (error) {
       toast({ title: '数据加载失败', variant: 'destructive' })
     } finally {
@@ -101,23 +87,11 @@ export default function AccessControl() {
     loadData()
   }, [])
 
-  // 更新设置
-  const updateSettings = async (key: keyof AccessControlSettings, value: boolean | string) => {
-    const newSettings = { ...settings, [key]: value }
-    try {
-      await accessControlApi.updateSettings(newSettings)
-      setSettings(newSettings)
-      toast({ title: '设置已更新' })
-    } catch (error) {
-      toast({ title: '更新失败', variant: 'destructive' })
-    }
-  }
-
   // 同步配置
   const handleSync = async () => {
     try {
       setSyncing(true)
-      await accessControlApi.syncConfig()
+      await accessRuleApi.syncConfig()
       toast({ title: '配置已同步到 Nginx' })
     } catch (error) {
       toast({ title: '同步失败', variant: 'destructive' })
@@ -126,97 +100,127 @@ export default function AccessControl() {
     }
   }
 
-  // IP 黑名单操作
-  const handleCreateIP = async () => {
-    if (!ipForm.ipAddress.trim()) {
-      toast({ title: '请输入 IP 地址', variant: 'destructive' })
+  // 打开新建对话框
+  const openCreateDialog = () => {
+    setEditingRule(null)
+    setForm({
+      name: '',
+      description: '',
+      enabled: true,
+      items: [],
+    })
+    setEditDialogOpen(true)
+  }
+
+  // 打开编辑对话框
+  const openEditDialog = async (rule: AccessRuleSummary) => {
+    try {
+      const res = await accessRuleApi.getById(rule.id)
+      const detail = res.data
+      setEditingRule(detail)
+      setForm({
+        name: detail.name,
+        description: detail.description,
+        enabled: detail.enabled,
+        items: detail.items.map(item => ({ ...item })),
+      })
+      setEditDialogOpen(true)
+    } catch (error) {
+      toast({ title: '获取规则详情失败', variant: 'destructive' })
+    }
+  }
+
+  // 保存规则（创建或更新）
+  const handleSave = async () => {
+    if (!form.name.trim()) {
+      toast({ title: '规则名称不能为空', variant: 'destructive' })
       return
     }
-    try {
-      await accessControlApi.createIPBlacklist({
-        ipAddress: ipForm.ipAddress,
-        note: ipForm.note,
-        enabled: true,
-      })
-      toast({ title: 'IP 已添加到黑名单' })
-      setIPDialogOpen(false)
-      setIPForm({ ipAddress: '', note: '' })
-      loadData()
-    } catch (error: any) {
-      toast({ title: error.userMessage || '添加失败', variant: 'destructive' })
-    }
-  }
-
-  const handleToggleIP = async (id: number, enabled: boolean) => {
-    try {
-      await accessControlApi.toggleIPBlacklist(id, enabled)
-      loadData()
-    } catch (error) {
-      toast({ title: '操作失败', variant: 'destructive' })
-    }
-  }
-
-  const handleDeleteIP = async (id: number) => {
-    try {
-      await accessControlApi.deleteIPBlacklist(id)
-      toast({ title: '已删除' })
-      loadData()
-    } catch (error) {
-      toast({ title: '删除失败', variant: 'destructive' })
-    }
-  }
-
-  // Geo 规则操作
-  const handleCreateGeo = async () => {
-    if (!geoForm.countryCode.trim()) {
-      toast({ title: '请选择国家', variant: 'destructive' })
+    if (form.items.length === 0) {
+      toast({ title: '请至少添加一条规则条目', variant: 'destructive' })
       return
     }
+
     try {
-      await accessControlApi.createGeoRule({
-        countryCode: geoForm.countryCode.toUpperCase(),
-        action: geoForm.action,
-        note: geoForm.note,
-        enabled: true,
-      })
-      toast({ title: 'Geo 规则已添加' })
-      setGeoDialogOpen(false)
-      setGeoForm({ countryCode: '', action: 'block', note: '' })
+      if (editingRule) {
+        await accessRuleApi.update(editingRule.id, form)
+        toast({ title: '规则已更新' })
+      } else {
+        await accessRuleApi.create(form)
+        toast({ title: '规则已创建' })
+      }
+      setEditDialogOpen(false)
       loadData()
     } catch (error: any) {
-      toast({ title: error.userMessage || '添加失败', variant: 'destructive' })
+      toast({ title: error.userMessage || '保存失败', variant: 'destructive' })
     }
   }
 
-  const handleToggleGeo = async (id: number, enabled: boolean) => {
-    try {
-      await accessControlApi.toggleGeoRule(id, enabled)
-      loadData()
-    } catch (error) {
-      toast({ title: '操作失败', variant: 'destructive' })
-    }
-  }
-
-  const handleDeleteGeo = async (id: number) => {
-    try {
-      await accessControlApi.deleteGeoRule(id)
-      toast({ title: '已删除' })
-      loadData()
-    } catch (error) {
-      toast({ title: '删除失败', variant: 'destructive' })
-    }
-  }
-
-  // 确认删除
-  const confirmDelete = () => {
+  // 删除规则
+  const handleDelete = async () => {
     if (!deleteTarget) return
-    if (deleteTarget.type === 'ip') {
-      handleDeleteIP(deleteTarget.id)
-    } else {
-      handleDeleteGeo(deleteTarget.id)
+    try {
+      await accessRuleApi.delete(deleteTarget.id)
+      toast({ title: '规则已删除' })
+      loadData()
+    } catch (error: any) {
+      toast({ title: error.userMessage || '删除失败', variant: 'destructive' })
     }
     setDeleteDialogOpen(false)
     setDeleteTarget(null)
+  }
+
+  // 切换启用状态
+  const handleToggle = async (id: number, enabled: boolean) => {
+    try {
+      await accessRuleApi.toggle(id, enabled)
+      loadData()
+    } catch (error) {
+      toast({ title: '操作失败', variant: 'destructive' })
+    }
+  }
+
+  // ==================== 规则条目操作 ====================
+
+  const addIPItem = () => {
+    setForm({
+      ...form,
+      items: [...form.items, {
+        id: 0,
+        ruleId: 0,
+        itemType: 'ip',
+        ipAddress: '',
+        countryCode: '',
+        action: 'block',
+        note: '',
+      }],
+    })
+  }
+
+  const addGeoItem = () => {
+    setForm({
+      ...form,
+      items: [...form.items, {
+        id: 0,
+        ruleId: 0,
+        itemType: 'geo',
+        ipAddress: '',
+        countryCode: '',
+        action: 'block',
+        note: '',
+      }],
+    })
+  }
+
+  const removeItem = (index: number) => {
+    const newItems = form.items.filter((_, i) => i !== index)
+    setForm({ ...form, items: newItems })
+  }
+
+  const updateItem = (index: number, updates: Partial<AccessRuleItem>) => {
+    const newItems = [...form.items]
+    newItems[index] = { ...newItems[index], ...updates }
+    setForm({ ...form, items: newItems })
   }
 
   if (loading) {
@@ -233,313 +237,264 @@ export default function AccessControl() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">访问控制</h1>
-          <p className="text-sm text-muted-foreground mt-1">管理 Geo/IP 封锁规则</p>
+          <p className="text-sm text-muted-foreground mt-1">管理访问规则，站点可多选规则进行访问控制</p>
         </div>
-        <Button variant="outline" onClick={handleSync} disabled={syncing}>
-          <RefreshCw className={cn("h-4 w-4 mr-2", syncing && "animate-spin")} />
-          同步配置
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={handleSync} disabled={syncing}>
+            <RefreshCw className={cn("h-4 w-4 mr-2", syncing && "animate-spin")} />
+            同步配置
+          </Button>
+          <Button onClick={openCreateDialog}>
+            <Plus className="h-4 w-4 mr-2" />
+            新建规则
+          </Button>
+        </div>
       </div>
 
-      {/* 全局设置 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            全局设置
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-6">
-            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <Globe className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <div className="font-medium">Geo 封锁</div>
-                  <div className="text-xs text-muted-foreground">按国家/地区控制访问</div>
-                </div>
-              </div>
-              <Switch
-                checked={settings.geoEnabled}
-                onCheckedChange={(checked) => updateSettings('geoEnabled', checked)}
-              />
-            </div>
-            
-            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <Ban className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <div className="font-medium">IP 黑名单</div>
-                  <div className="text-xs text-muted-foreground">封锁指定 IP/网段</div>
-                </div>
-              </div>
-              <Switch
-                checked={settings.ipBlacklistEnabled}
-                onCheckedChange={(checked) => updateSettings('ipBlacklistEnabled', checked)}
-              />
-            </div>
-            
-            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-              <div className="flex items-center gap-3">
-                {settings.defaultAction === 'allow' ? (
-                  <Unlock className="h-5 w-5 text-emerald-500" />
-                ) : (
-                  <Lock className="h-5 w-5 text-destructive" />
-                )}
-                <div>
-                  <div className="font-medium">默认策略</div>
-                  <div className="text-xs text-muted-foreground">未匹配规则时的动作</div>
-                </div>
-              </div>
-              <Select
-                value={settings.defaultAction}
-                onValueChange={(value) => updateSettings('defaultAction', value)}
-              >
-                <SelectTrigger className="w-28">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="allow">允许所有</SelectItem>
-                  <SelectItem value="block">封锁所有</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* IP 黑名单 & Geo 规则 */}
-      <div className="grid grid-cols-2 gap-6">
-        {/* IP 黑名单 */}
+      {/* 规则列表 */}
+      {rules.length === 0 ? (
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Ban className="h-5 w-5" />
-              IP 黑名单
-              <Badge variant="secondary">{ipBlacklist.length}</Badge>
-            </CardTitle>
-            <Button size="sm" onClick={() => setIPDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" /> 添加
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {ipBlacklist.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Ban className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p>暂无 IP 黑名单</p>
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                {ipBlacklist.map((item) => (
-                  <div
-                    key={item.id}
-                    className={cn(
-                      "flex items-center justify-between p-3 rounded-lg border",
-                      item.enabled ? "bg-card" : "bg-muted/30 opacity-60"
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <code className="text-sm font-mono">{item.ipAddress}</code>
-                      {item.note && (
-                        <span className="text-xs text-muted-foreground">{item.note}</span>
-                      )}
+          <CardContent className="py-12 text-center text-muted-foreground">
+            <Shield className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>暂无访问规则</p>
+            <p className="text-sm mt-1">点击"新建规则"创建第一条访问控制规则</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4">
+          {rules.map((rule) => (
+            <Card key={rule.id} className={cn(!rule.enabled && "opacity-60")}>
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className={cn(
+                      "flex items-center justify-center h-10 w-10 rounded-lg",
+                      rule.enabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                    )}>
+                      <Shield className="h-5 w-5" />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleToggleIP(item.id, !item.enabled)}
-                      >
-                        {item.enabled ? (
-                          <ToggleRight className="h-4 w-4 text-emerald-500" />
-                        ) : (
-                          <ToggleLeft className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{rule.name}</span>
+                        {!rule.enabled && (
+                          <Badge variant="secondary" className="text-xs">已禁用</Badge>
                         )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => {
-                          setDeleteTarget({ type: 'ip', id: item.id })
-                          setDeleteDialogOpen(true)
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      </div>
+                      {rule.description && (
+                        <p className="text-sm text-muted-foreground">{rule.description}</p>
+                      )}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
-        {/* Geo 规则 */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Globe className="h-5 w-5" />
-              Geo 规则
-              <Badge variant="secondary">{geoRules.length}</Badge>
-            </CardTitle>
-            <Button size="sm" onClick={() => setGeoDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" /> 添加
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {geoRules.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Globe className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p>暂无 Geo 规则</p>
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                {geoRules.map((item) => {
-                  const country = getCountryInfo(item.countryCode)
-                  return (
-                    <div
-                      key={item.id}
-                      className={cn(
-                        "flex items-center justify-between p-3 rounded-lg border",
-                        item.enabled ? "bg-card" : "bg-muted/30 opacity-60"
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-lg">{country.flag}</span>
-                        <span className="text-sm font-medium">{item.countryCode}</span>
-                        <span className="text-xs text-muted-foreground">{country.name}</span>
-                        <Badge 
-                          variant={item.action === 'block' ? 'destructive' : 'default'}
-                          className="text-xs"
-                        >
-                          {item.action === 'block' ? '封锁' : '允许'}
+                  <div className="flex items-center gap-3">
+                    {/* 规则统计 */}
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      {rule.ipCount > 0 && (
+                        <Badge variant="outline" className="gap-1">
+                          <Ban className="h-3 w-3" />
+                          {rule.ipCount} IP
                         </Badge>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleToggleGeo(item.id, !item.enabled)}
-                        >
-                          {item.enabled ? (
-                            <ToggleRight className="h-4 w-4 text-emerald-500" />
-                          ) : (
-                            <ToggleLeft className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => {
-                            setDeleteTarget({ type: 'geo', id: item.id })
-                            setDeleteDialogOpen(true)
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      )}
+                      {rule.geoCount > 0 && (
+                        <Badge variant="outline" className="gap-1">
+                          <Globe className="h-3 w-3" />
+                          {rule.geoCount} 地区
+                        </Badge>
+                      )}
+                      {rule.siteCount > 0 && (
+                        <Badge variant="secondary" className="gap-1">
+                          引用 {rule.siteCount} 站点
+                        </Badge>
+                      )}
                     </div>
-                  )
-                })}
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleToggle(rule.id, !rule.enabled)}
+                    >
+                      {rule.enabled ? (
+                        <ToggleRight className="h-4 w-4 text-emerald-500" />
+                      ) : (
+                        <ToggleLeft className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setExpandedRuleId(expandedRuleId === rule.id ? null : rule.id)}
+                    >
+                      {expandedRuleId === rule.id ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => openEditDialog(rule)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => {
+                        setDeleteTarget(rule)
+                        setDeleteDialogOpen(true)
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* 展开的详情 */}
+                {expandedRuleId === rule.id && (
+                  <div className="mt-4 pt-4 border-t">
+                    <RuleDetail ruleId={rule.id} />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* 编辑/创建规则对话框 */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingRule ? '编辑规则' : '新建规则'}</DialogTitle>
+            <DialogDescription>
+              创建独立的访问控制规则，每条规则可包含 IP 黑名单和 Geo 地区规则
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 py-4">
+            {/* 基本信息 */}
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>规则名称 *</Label>
+                  <Input
+                    placeholder="如：封锁恶意IP"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>启用状态</Label>
+                  <div className="flex items-center h-9">
+                    <Switch
+                      checked={form.enabled}
+                      onCheckedChange={(checked) => setForm({ ...form, enabled: checked })}
+                    />
+                    <span className="ml-2 text-sm text-muted-foreground">
+                      {form.enabled ? '启用' : '禁用'}
+                    </span>
+                  </div>
+                </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 添加 IP 对话框 */}
-      <Dialog open={ipDialogOpen} onOpenChange={setIPDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>添加 IP 到黑名单</DialogTitle>
-            <DialogDescription>
-              支持单个 IP 或 CIDR 网段，如 192.168.1.1 或 10.0.0.0/8
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>IP 地址 / 网段</Label>
-              <Input
-                placeholder="192.168.1.100 或 10.0.0.0/8"
-                value={ipForm.ipAddress}
-                onChange={(e) => setIPForm({ ...ipForm, ipAddress: e.target.value })}
-              />
+              <div className="space-y-2">
+                <Label>规则描述</Label>
+                <Textarea
+                  placeholder="描述规则的用途..."
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  rows={2}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>备注（可选）</Label>
-              <Textarea
-                placeholder="说明封禁原因..."
-                value={ipForm.note}
-                onChange={(e) => setIPForm({ ...ipForm, note: e.target.value })}
-                rows={2}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIPDialogOpen(false)}>取消</Button>
-            <Button onClick={handleCreateIP}>添加</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      {/* 添加 Geo 规则对话框 */}
-      <Dialog open={geoDialogOpen} onOpenChange={setGeoDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>添加 Geo 规则</DialogTitle>
-            <DialogDescription>
-              根据访问者的地理位置控制访问权限
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>国家/地区</Label>
-              <Select
-                value={geoForm.countryCode}
-                onValueChange={(value) => setGeoForm({ ...geoForm, countryCode: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="选择国家/地区" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px]">
-                  {Object.entries(COUNTRY_CODES).map(([code, info]) => (
-                    <SelectItem key={code} value={code}>
-                      {info.flag} {info.name} ({code})
-                    </SelectItem>
+            {/* 规则条目 */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-medium">规则条目</Label>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={addIPItem}>
+                    <Plus className="h-3 w-3 mr-1" /> IP
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={addGeoItem}>
+                    <Plus className="h-3 w-3 mr-1" /> 地区
+                  </Button>
+                </div>
+              </div>
+
+              {form.items.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground border rounded-lg border-dashed">
+                  <p className="text-sm">暂无条目，点击上方按钮添加 IP 或地区规则</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {form.items.map((item, index) => (
+                    <div key={index} className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                      <Badge variant={item.itemType === 'ip' ? 'destructive' : 'default'} className="text-xs shrink-0">
+                        {item.itemType === 'ip' ? 'IP' : '地区'}
+                      </Badge>
+
+                      {item.itemType === 'ip' ? (
+                        <Input
+                          placeholder="192.168.1.0/24"
+                          value={item.ipAddress}
+                          onChange={(e) => updateItem(index, { ipAddress: e.target.value })}
+                          className="h-8 text-sm flex-1"
+                        />
+                      ) : (
+                        <>
+                          <Select
+                            value={item.countryCode}
+                            onValueChange={(value) => updateItem(index, { countryCode: value })}
+                          >
+                            <SelectTrigger className="h-8 text-sm w-44">
+                              <SelectValue placeholder="选择国家" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-[200px]">
+                              {Object.entries(COUNTRY_CODES).map(([code, info]) => (
+                                <SelectItem key={code} value={code}>
+                                  {info.flag} {info.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Select
+                            value={item.action}
+                            onValueChange={(value: 'allow' | 'block') => updateItem(index, { action: value })}
+                          >
+                            <SelectTrigger className="h-8 text-sm w-24">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="block">封锁</SelectItem>
+                              <SelectItem value="allow">允许</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </>
+                      )}
+
+                      <Input
+                        placeholder="备注"
+                        value={item.note}
+                        onChange={(e) => updateItem(index, { note: e.target.value })}
+                        className="h-8 text-sm w-28"
+                      />
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive shrink-0 h-8 w-8 p-0"
+                        onClick={() => removeItem(index)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>动作</Label>
-              <Select
-                value={geoForm.action}
-                onValueChange={(value: 'allow' | 'block') => setGeoForm({ ...geoForm, action: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="block">封锁</SelectItem>
-                  <SelectItem value="allow">允许</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>备注（可选）</Label>
-              <Textarea
-                placeholder="说明规则用途..."
-                value={geoForm.note}
-                onChange={(e) => setGeoForm({ ...geoForm, note: e.target.value })}
-                rows={2}
-              />
+                </div>
+              )}
             </div>
           </div>
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setGeoDialogOpen(false)}>取消</Button>
-            <Button onClick={handleCreateGeo}>添加</Button>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>取消</Button>
+            <Button onClick={handleSave}>{editingRule ? '保存' : '创建'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -550,17 +505,87 @@ export default function AccessControl() {
           <AlertDialogHeader>
             <AlertDialogTitle>确认删除</AlertDialogTitle>
             <AlertDialogDescription>
-              确定要删除此规则吗？此操作不可恢复。
+              确定要删除规则 <strong>{deleteTarget?.name}</strong> 吗？
+              {deleteTarget && deleteTarget.siteCount > 0 && (
+                <span className="text-destructive block mt-1">
+                  该规则正在被 {deleteTarget.siteCount} 个站点引用，无法删除。
+                </span>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleteTarget ? deleteTarget.siteCount > 0 : false}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
               删除
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  )
+}
+
+// 规则详情子组件
+function RuleDetail({ ruleId }: { ruleId: number }) {
+  const [rule, setRule] = useState<AccessRule | null>(null)
+
+  useEffect(() => {
+    accessRuleApi.getById(ruleId).then(res => setRule(res.data)).catch(() => {})
+  }, [ruleId])
+
+  if (!rule) {
+    return <div className="flex justify-center py-4"><Loader2 className="h-4 w-4 animate-spin" /></div>
+  }
+
+  const ipItems = rule.items.filter(i => i.itemType === 'ip')
+  const geoItems = rule.items.filter(i => i.itemType === 'geo')
+
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      {ipItems.length > 0 && (
+        <div>
+          <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+            <Ban className="h-4 w-4" /> IP 黑名单
+          </h4>
+          <div className="space-y-1">
+            {ipItems.map(item => (
+              <div key={item.id} className="flex items-center gap-2 text-sm p-1.5 bg-muted/50 rounded">
+                <code className="font-mono text-xs">{item.ipAddress}</code>
+                {item.note && <span className="text-xs text-muted-foreground">- {item.note}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {geoItems.length > 0 && (
+        <div>
+          <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+            <Globe className="h-4 w-4" /> Geo 规则
+          </h4>
+          <div className="space-y-1">
+            {geoItems.map(item => {
+              const country = getCountryInfo(item.countryCode)
+              return (
+                <div key={item.id} className="flex items-center gap-2 text-sm p-1.5 bg-muted/50 rounded">
+                  <span>{country.flag}</span>
+                  <span className="font-medium">{item.countryCode}</span>
+                  <span className="text-xs text-muted-foreground">{country.name}</span>
+                  <Badge variant={item.action === 'block' ? 'destructive' : 'default'} className="text-xs">
+                    {item.action === 'block' ? '封锁' : '允许'}
+                  </Badge>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+      {ipItems.length === 0 && geoItems.length === 0 && (
+        <div className="col-span-2 text-center py-4 text-sm text-muted-foreground">该规则没有条目</div>
+      )}
     </div>
   )
 }

@@ -21,7 +21,7 @@ type Site struct {
 	Gzip               bool      `json:"gzip" gorm:"default:false"`
 	Cache              bool      `json:"cache" gorm:"default:false"`
 	MaxBodySize        int       `json:"maxBodySize" gorm:"default:200"`        // 最大上传大小（MB），默认200MB
-	AccessControlMode  string    `json:"accessControlMode" gorm:"size:20;default:inherit"` // inherit/merge/override
+	AccessControlMode  string    `json:"accessControlMode" gorm:"size:20;default:custom"` // custom (新设计：通过规则关联)
 	Enabled            bool      `json:"enabled" gorm:"default:true"`
 	Config             string    `json:"config" gorm:"type:text"`
 	CreatedAt          time.Time `json:"createdAt" gorm:"autoCreateTime"`
