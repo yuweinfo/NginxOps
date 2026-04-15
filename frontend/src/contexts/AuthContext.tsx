@@ -46,19 +46,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user])
 
-  const login = async (username: string, password: string): Promise<boolean> => {
+  const login = async (username: string, password: string): Promise<{ success: boolean; message?: string }> => {
     try {
       const response = await authApi.login({ username, password })
       if (response.success && response.data) {
         const { token: newToken, username: uname, role } = response.data
         setToken(newToken)
         setUser({ username: uname, role })
-        return true
+        return { success: true }
       }
-      return false
-    } catch (error) {
+      return { success: false, message: response.message }
+    } catch (error: any) {
       console.error('Login failed:', error)
-      return false
+      return { success: false, message: error.userMessage || '登录失败，请稍后重试' }
     }
   }
 

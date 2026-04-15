@@ -34,15 +34,15 @@ type LoginResponse struct {
 func (s *AuthService) Login(req *LoginRequest) (*LoginResponse, error) {
 	user, err := s.userRepo.FindByUsername(req.Username)
 	if err != nil || user == nil {
-		return nil, errors.New("用户名或密码错误")
+		return nil, errors.New("用户不存在")
 	}
 
 	if !user.Enabled {
-		return nil, errors.New("用户名或密码错误")
+		return nil, errors.New("用户已被禁用")
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
-		return nil, errors.New("用户名或密码错误")
+		return nil, errors.New("密码错误")
 	}
 
 	token, err := jwt.GenerateToken(user.ID, user.Username)
