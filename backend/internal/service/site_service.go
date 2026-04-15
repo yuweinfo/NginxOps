@@ -43,7 +43,6 @@ type SiteDto struct {
 	Gzip              bool   `json:"gzip"`
 	Cache             bool   `json:"cache"`
 	MaxBodySize       int    `json:"maxBodySize"`
-	AccessControlMode string `json:"accessControlMode"`
 	AccessRuleIDs     []uint `json:"accessRuleIds"`
 	Enabled           bool   `json:"enabled"`
 	Config            string `json:"config"`
@@ -86,7 +85,6 @@ func (s *SiteService) Create(dto *SiteDto) (*model.Site, error) {
 		Gzip:              dto.Gzip,
 		Cache:             dto.Cache,
 		MaxBodySize:       dto.MaxBodySize,
-		AccessControlMode: dto.AccessControlMode,
 		Enabled:           true,
 	}
 
@@ -97,9 +95,6 @@ func (s *SiteService) Create(dto *SiteDto) (*model.Site, error) {
 	// 设置默认值
 	if site.MaxBodySize == 0 {
 		site.MaxBodySize = 200
-	}
-	if site.AccessControlMode == "" {
-		site.AccessControlMode = "custom"
 	}
 
 	// 先验证配置语法
@@ -146,7 +141,6 @@ func (s *SiteService) Update(id uint, dto *SiteDto) (*model.Site, error) {
 	originalGzip := site.Gzip
 	originalCache := site.Cache
 	originalMaxBodySize := site.MaxBodySize
-	originalAccessControlMode := site.AccessControlMode
 
 	if dto.FileName != "" {
 		site.FileName = dto.FileName
@@ -178,9 +172,6 @@ func (s *SiteService) Update(id uint, dto *SiteDto) (*model.Site, error) {
 	if dto.MaxBodySize > 0 {
 		site.MaxBodySize = dto.MaxBodySize
 	}
-	if dto.AccessControlMode != "" {
-		site.AccessControlMode = dto.AccessControlMode
-	}
 	if dto.Enabled {
 		site.Enabled = true
 	}
@@ -204,7 +195,6 @@ func (s *SiteService) Update(id uint, dto *SiteDto) (*model.Site, error) {
 		site.Gzip = originalGzip
 		site.Cache = originalCache
 		site.MaxBodySize = originalMaxBodySize
-		site.AccessControlMode = originalAccessControlMode
 		return nil, fmt.Errorf("Nginx 配置语法错误: %s", errMsg)
 	}
 

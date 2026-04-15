@@ -321,7 +321,6 @@ export default function Sites() {
       gzip: wizardData.gzip || false,
       cache: wizardData.cache || false,
       maxBodySize: wizardData.maxBodySize || 200,
-      accessControlMode: 'custom' as const,
       accessRuleIds: wizardData.accessRuleIds || [],
     }
 

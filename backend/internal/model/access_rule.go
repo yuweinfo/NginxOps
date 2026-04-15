@@ -26,7 +26,7 @@ type AccessRuleItem struct {
 	ItemType    string    `json:"itemType" gorm:"size:20;not null"` // ip / geo
 	IPAddress   string    `json:"ipAddress" gorm:"size:100"`        // 当 ItemType=ip 时使用
 	CountryCode string    `json:"countryCode" gorm:"size:10"`       // 当 ItemType=geo 时使用
-	Action      string    `json:"action" gorm:"size:10;default:block"` // 当 ItemType=geo 时使用: allow/block
+	Action      string    `json:"action" gorm:"size:10;default:block"` // allow / block（IP 和 Geo 均使用）
 	Note        string    `json:"note" gorm:"size:255"`
 	CreatedAt   time.Time `json:"createdAt" gorm:"autoCreateTime"`
 	UpdatedAt   time.Time `json:"updatedAt" gorm:"autoUpdateTime"`

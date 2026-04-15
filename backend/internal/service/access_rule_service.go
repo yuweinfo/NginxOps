@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"log"
+	"net"
 	"nginxops/internal/config"
 	"nginxops/internal/model"
 	"nginxops/internal/repository"
@@ -39,7 +40,7 @@ type AccessRuleItemDto struct {
 	ItemType    string `json:"itemType"`    // ip / geo
 	IPAddress   string `json:"ipAddress"`   // 当 ItemType=ip 时使用
 	CountryCode string `json:"countryCode"` // 当 ItemType=geo 时使用
-	Action      string `json:"action"`      // 当 ItemType=geo 时使用: allow/block
+	Action      string `json:"action"`      // allow / block（IP 和 Geo 均使用）
 	Note        string `json:"note"`
 }
 
@@ -243,22 +244,26 @@ func (s *AccessRuleService) GetRulesForSite(siteID uint) ([]AccessRuleSummaryDto
 
 // MergedAccessRules 合并后的访问控制规则
 type MergedAccessRules struct {
-	IPList     []string           // 合并后的 IP 黑名单列表（去重）
-	GeoRules   map[string]string  // 合并后的 Geo 规则（countryCode -> action）
+	BlockedIPs []string          // 合并后的 IP 黑名单列表（action=block）
+	AllowedIPs []string          // 合并后的 IP 白名单列表（action=allow）
+	GeoRules   map[string]string // 合并后的 Geo 规则（countryCode -> action）
 }
 
 // MergeRules 合并多条规则为一个统一的规则集
 // 逻辑：
-// - IP黑名单：取并集（去重）
+// - IP规则：按 action 分类，block 和 allow 分别收集（去重）
+//   - 如果同一 IP 同时出现在 allow 和 block 中，block 优先（安全优先）
 // - Geo规则：相同国家代码，如果任一规则 block 则 block；如果所有规则都 allow 则 allow
 //   优先级：block > allow（安全优先）
 func (s *AccessRuleService) MergeRules(rules []model.AccessRule) *MergedAccessRules {
 	merged := &MergedAccessRules{
-		IPList:   []string{},
-		GeoRules: make(map[string]string),
+		BlockedIPs: []string{},
+		AllowedIPs: []string{},
+		GeoRules:   make(map[string]string),
 	}
 
-	ipSet := make(map[string]bool)
+	blockedSet := make(map[string]bool)
+	allowedSet := make(map[string]bool)
 
 	for _, rule := range rules {
 		if !rule.Enabled {
@@ -268,17 +273,32 @@ func (s *AccessRuleService) MergeRules(rules []model.AccessRule) *MergedAccessRu
 			switch item.ItemType {
 			case "ip":
 				if item.IPAddress != "" {
-					ipSet[item.IPAddress] = true
+					action := item.Action
+					if action == "" {
+						action = "block" // 默认 block
+					}
+					if action == "block" {
+						blockedSet[item.IPAddress] = true
+						delete(allowedSet, item.IPAddress) // block 优先，从 allow 中移除
+					} else if action == "allow" {
+						if !blockedSet[item.IPAddress] { // 如果已被 block 则不加入 allow
+							allowedSet[item.IPAddress] = true
+						}
+					}
 				}
 			case "geo":
 				if item.CountryCode != "" {
 					cc := strings.ToUpper(item.CountryCode)
+					action := item.Action
+					if action == "" {
+						action = "block"
+					}
 					existing, exists := merged.GeoRules[cc]
 					if !exists {
-						merged.GeoRules[cc] = item.Action
+						merged.GeoRules[cc] = action
 					} else {
 						// 安全优先：block 覆盖 allow
-						if existing == "allow" && item.Action == "block" {
+						if existing == "allow" && action == "block" {
 							merged.GeoRules[cc] = "block"
 						}
 					}
@@ -287,8 +307,11 @@ func (s *AccessRuleService) MergeRules(rules []model.AccessRule) *MergedAccessRu
 		}
 	}
 
-	for ip := range ipSet {
-		merged.IPList = append(merged.IPList, ip)
+	for ip := range blockedSet {
+		merged.BlockedIPs = append(merged.BlockedIPs, ip)
+	}
+	for ip := range allowedSet {
+		merged.AllowedIPs = append(merged.AllowedIPs, ip)
 	}
 
 	return merged
@@ -317,8 +340,8 @@ func (s *AccessRuleService) SyncAllConfigs() error {
 	}
 	merged := s.MergeRules(rules)
 
-	// 生成全局 IP 黑名单配置
-	if err := s.generateIPBlacklistConfig(confDir, merged.IPList); err != nil {
+	// 生成全局 IP 访问控制配置
+	if err := s.generateIPAccessConfig(confDir, merged.BlockedIPs, merged.AllowedIPs); err != nil {
 		return err
 	}
 
@@ -337,7 +360,6 @@ func (s *AccessRuleService) SyncAllConfigs() error {
 }
 
 // GetSiteAccessControlConfig 生成站点访问控制配置片段
-// 在新的规则模式下，站点通过关联规则来控制访问
 func (s *AccessRuleService) GetSiteAccessControlConfig(siteID uint) (string, error) {
 	rules, err := s.repo.GetRulesBySiteID(siteID)
 	if err != nil {
@@ -354,14 +376,15 @@ func (s *AccessRuleService) GetSiteAccessControlConfig(siteID uint) (string, err
 
 // ==================== 配置生成 ====================
 
-func (s *AccessRuleService) generateIPBlacklistConfig(confDir string, ipList []string) error {
+func (s *AccessRuleService) generateIPAccessConfig(confDir string, blockedIPs []string, allowedIPs []string) error {
 	var sb strings.Builder
-	sb.WriteString("# 自动生成的 IP 黑名单配置 - 请勿手动修改\n\n")
+	sb.WriteString("# 自动生成的 IP 访问控制配置 - 请勿手动修改\n\n")
 
-	if len(ipList) > 0 {
+	// IP 黑名单
+	if len(blockedIPs) > 0 {
 		sb.WriteString("geo $global_blocked_ip {\n")
 		sb.WriteString("    default 0;\n")
-		for _, ip := range ipList {
+		for _, ip := range blockedIPs {
 			sb.WriteString(fmt.Sprintf("    %s 1;\n", ip))
 		}
 		sb.WriteString("}\n")
@@ -371,52 +394,52 @@ func (s *AccessRuleService) generateIPBlacklistConfig(confDir string, ipList []s
 		sb.WriteString("}\n")
 	}
 
-	confPath := filepath.Join(confDir, "global_ip_blacklist.conf")
+	// IP 白名单
+	if len(allowedIPs) > 0 {
+		sb.WriteString("\ngeo $global_allowed_ip {\n")
+		sb.WriteString("    default 0;\n")
+		for _, ip := range allowedIPs {
+			sb.WriteString(fmt.Sprintf("    %s 1;\n", ip))
+		}
+		sb.WriteString("}\n")
+	} else {
+		sb.WriteString("\ngeo $global_allowed_ip {\n")
+		sb.WriteString("    default 0;\n")
+		sb.WriteString("}\n")
+	}
+
+	confPath := filepath.Join(confDir, "global_ip_access.conf")
 	return os.WriteFile(confPath, []byte(sb.String()), 0644)
 }
 
 func (s *AccessRuleService) generateGeoConfig(confDir string, geoRules map[string]string) error {
 	var sb strings.Builder
-	sb.WriteString("# 自动生成的 Geo 封锁配置 - 请勿手动修改\n\n")
+	sb.WriteString("# 自动生成的 Geo 封锁配置 - 请勿手动修改\n")
+	sb.WriteString("# 使用 auth_request 委托后端进行 GeoIP 查询和访问控制判断\n\n")
 
-	if len(geoRules) > 0 {
-		sb.WriteString("map $geoip_country_code $global_geo_action {\n")
-		sb.WriteString("    default allow;\n")
-		for cc, action := range geoRules {
-			sb.WriteString(fmt.Sprintf("    %s %s;\n", cc, action))
-		}
-		sb.WriteString("}\n")
-	} else {
-		sb.WriteString("map $remote_addr $global_geo_action {\n")
-		sb.WriteString("    default allow;\n")
-		sb.WriteString("}\n")
-	}
+	sb.WriteString("geo $global_geo_action {\n")
+	sb.WriteString("    default allow;\n")
+	sb.WriteString("}\n")
 
 	confPath := filepath.Join(confDir, "global_geo.conf")
 	return os.WriteFile(confPath, []byte(sb.String()), 0644)
 }
 
 func (s *AccessRuleService) syncAllSiteConfigs(confDir string) error {
-	// 清理旧的站点专属配置文件
-	// 每个站点生成自己的 geo/map 变量
-	// 站点条件判断在 server 块中内联生成
-
-	// 对于关联了规则的站点，生成站点专属的 geo/map 配置
-	// （如果该站点有自己独立的 IP 黑名单或 Geo 规则，与全局规则不同的话）
-
-	// 在新设计下，每个站点的规则通过 site_access_rules 关联
-	// 站点专属变量使用 $site_{id}_blocked_ip 和 $site_{id}_geo_action
-	// 但为了简化，如果站点关联了规则，直接在 server 块中使用全局变量
-	// 因为全局配置已经包含了所有启用的规则
-
 	// 清理旧的站点配置文件
 	entries, err := os.ReadDir(confDir)
 	if err != nil {
 		return err
 	}
 	for _, entry := range entries {
-		if strings.HasPrefix(entry.Name(), "site_") {
-			os.Remove(filepath.Join(confDir, entry.Name()))
+		name := entry.Name()
+		// 删除旧的配置文件
+		if strings.HasPrefix(name, "site_") && (strings.HasSuffix(name, "_geo.conf") || strings.HasSuffix(name, "_ip_blacklist.conf") || strings.HasSuffix(name, "_ip_access.conf")) {
+			os.Remove(filepath.Join(confDir, name))
+		}
+		// 删除旧的全局 IP 黑名单文件（已改名为 global_ip_access.conf）
+		if name == "global_ip_blacklist.conf" {
+			os.Remove(filepath.Join(confDir, name))
 		}
 	}
 
@@ -424,86 +447,105 @@ func (s *AccessRuleService) syncAllSiteConfigs(confDir string) error {
 }
 
 // generateSiteConditions 生成站点访问控制条件判断
+// 策略：
+// - 当只有 IP 黑名单时：Nginx 层 geo+if 快速拦截（纯 Nginx，高性能）
+// - 当有 IP 白名单和/或 Geo 规则时：全部通过 auth_request 后端统一检查
+//   （后端处理白名单优先、黑名单、Geo 的完整逻辑）
 func (s *AccessRuleService) generateSiteConditions(siteID uint, merged *MergedAccessRules) string {
 	var sb strings.Builder
 	sb.WriteString("    # 访问控制规则\n")
 
-	hasIP := len(merged.IPList) > 0
+	hasBlockedIPs := len(merged.BlockedIPs) > 0
+	hasAllowedIPs := len(merged.AllowedIPs) > 0
 	hasGeo := len(merged.GeoRules) > 0
+	hasAnyRule := hasBlockedIPs || hasAllowedIPs || hasGeo
 
-	if hasIP || hasGeo {
-		// 生成站点专属的 geo/map 配置文件
-		s.generateSiteSpecificConfig(siteID, merged)
+	if !hasAnyRule {
+		return ""
 	}
 
-	if hasIP {
+	// 真实 IP 获取（Docker 端口映射模式下必需，必须在 geo 指令之前）
+	sb.WriteString("    # 获取真实客户端 IP\n")
+	sb.WriteString("    set_real_ip_from 10.0.0.0/8;\n")
+	sb.WriteString("    set_real_ip_from 172.16.0.0/12;\n")
+	sb.WriteString("    set_real_ip_from 192.168.0.0/16;\n")
+	sb.WriteString("    set_real_ip_from 127.0.0.1;\n")
+	sb.WriteString("    real_ip_header X-Forwarded-For;\n")
+	sb.WriteString("    real_ip_recursive on;\n\n")
+
+	// 生成站点专属 IP 配置文件（geo 指令必须在 http 块中）
+	if hasBlockedIPs || hasAllowedIPs {
+		s.generateSiteIPConfig(siteID, merged)
+	}
+
+	onlyBlockedIPs := hasBlockedIPs && !hasAllowedIPs && !hasGeo
+
+	if onlyBlockedIPs {
+		// 简单场景：只有 IP 黑名单，Nginx 层直接拦截（高性能）
+		sb.WriteString(fmt.Sprintf("    # IP 黑名单 - 直接拒绝\n"))
 		sb.WriteString(fmt.Sprintf("    if ($site_%d_blocked_ip) { return 403; }\n", siteID))
-	}
-	if hasGeo {
-		// 检查是否有 block 规则
-		for _, action := range merged.GeoRules {
-			if action == "block" {
-				sb.WriteString(fmt.Sprintf("    if ($site_%d_geo_action = block) { return 403; }\n", siteID))
-				break
-			}
+	} else {
+		// 复杂场景：有白名单和/或 Geo 规则，统一通过 auth_request 后端检查
+		// 后端逻辑：白名单优先 -> 黑名单 -> Geo 规则
+		sb.WriteString("    # 访问控制 - 通过后端 API 统一检查\n")
+		sb.WriteString("    # 后端处理优先级：IP 白名单 > IP 黑名单 > Geo 规则\n")
+		sb.WriteString(fmt.Sprintf("    auth_request /access-control-check/site/%d;\n", siteID))
+
+		// Nginx 层仍然做黑名单快速拦截（作为额外保障）
+		if hasBlockedIPs {
+			sb.WriteString(fmt.Sprintf("    # IP 黑名单 - Nginx 层快速拦截（后端也会检查）\n"))
+			sb.WriteString(fmt.Sprintf("    if ($site_%d_blocked_ip) { return 403; }\n", siteID))
 		}
+
+		// 添加 auth_request 代理端点
+		sb.WriteString("\n    # auth_request 代理端点（internal）\n")
+		sb.WriteString("    location /access-control-check/ {\n")
+		sb.WriteString("        internal;\n")
+		sb.WriteString("        auth_request off;\n")
+		sb.WriteString("        proxy_pass http://127.0.0.1:8080/api/access-control/check/;\n")
+		sb.WriteString("        proxy_set_header Host $host;\n")
+		sb.WriteString("        proxy_set_header X-Real-IP $remote_addr;\n")
+		sb.WriteString("        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
+		sb.WriteString("        proxy_set_header X-Original-URI $request_uri;\n")
+		sb.WriteString("        proxy_connect_timeout 5s;\n")
+		sb.WriteString("        proxy_read_timeout 5s;\n")
+		sb.WriteString("    }\n")
 	}
 
 	return sb.String()
 }
 
-// generateSiteSpecificConfig 生成站点专属的 geo/map 配置文件
-func (s *AccessRuleService) generateSiteSpecificConfig(siteID uint, merged *MergedAccessRules) {
+// generateSiteIPConfig 生成站点 IP 访问控制 geo 配置文件
+func (s *AccessRuleService) generateSiteIPConfig(siteID uint, merged *MergedAccessRules) {
 	confDir := filepath.Join(config.AppConfig.Nginx.ConfDir, "access-control")
 
-	// 生成站点 IP 黑名单 geo 配置
-	if len(merged.IPList) > 0 {
-		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("# 站点 %d IP 黑名单配置\n", siteID))
-		sb.WriteString(fmt.Sprintf("geo $site_%d_blocked_ip {\n", siteID))
-		sb.WriteString("    default 0;\n")
-		for _, ip := range merged.IPList {
-			sb.WriteString(fmt.Sprintf("    %s 1;\n", ip))
-		}
-		sb.WriteString("}\n")
-		confPath := filepath.Join(confDir, fmt.Sprintf("site_%d_ip_blacklist.conf", siteID))
-		if err := os.WriteFile(confPath, []byte(sb.String()), 0644); err != nil {
-			log.Printf("写入站点 IP 黑名单配置失败: %v", err)
-		}
-	} else {
-		// 生成空的 geo 配置
-		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("# 站点 %d IP 黑名单配置（空）\n", siteID))
-		sb.WriteString(fmt.Sprintf("geo $site_%d_blocked_ip {\n", siteID))
-		sb.WriteString("    default 0;\n")
-		sb.WriteString("}\n")
-		confPath := filepath.Join(confDir, fmt.Sprintf("site_%d_ip_blacklist.conf", siteID))
-		os.WriteFile(confPath, []byte(sb.String()), 0644)
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("# 站点 %d IP 访问控制配置\n", siteID))
+
+	// 黑名单 geo
+	sb.WriteString(fmt.Sprintf("geo $site_%d_blocked_ip {\n", siteID))
+	sb.WriteString("    default 0;\n")
+	for _, ip := range merged.BlockedIPs {
+		sb.WriteString(fmt.Sprintf("    %s 1;\n", ip))
+	}
+	sb.WriteString("}\n\n")
+
+	// 白名单 geo
+	sb.WriteString(fmt.Sprintf("geo $site_%d_allowed_ip {\n", siteID))
+	sb.WriteString("    default 0;\n")
+	for _, ip := range merged.AllowedIPs {
+		sb.WriteString(fmt.Sprintf("    %s 1;\n", ip))
+	}
+	sb.WriteString("}\n")
+
+	confPath := filepath.Join(confDir, fmt.Sprintf("site_%d_ip_access.conf", siteID))
+	if err := os.WriteFile(confPath, []byte(sb.String()), 0644); err != nil {
+		log.Printf("写入站点 IP 访问控制配置失败: %v", err)
 	}
 
-	// 生成站点 Geo 规则 map 配置
-	if len(merged.GeoRules) > 0 {
-		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("# 站点 %d Geo 规则配置\n", siteID))
-		sb.WriteString(fmt.Sprintf("map $geoip_country_code $site_%d_geo_action {\n", siteID))
-		sb.WriteString("    default allow;\n")
-		for cc, action := range merged.GeoRules {
-			sb.WriteString(fmt.Sprintf("    %s %s;\n", cc, action))
-		}
-		sb.WriteString("}\n")
-		confPath := filepath.Join(confDir, fmt.Sprintf("site_%d_geo.conf", siteID))
-		if err := os.WriteFile(confPath, []byte(sb.String()), 0644); err != nil {
-			log.Printf("写入站点 Geo 规则配置失败: %v", err)
-		}
-	} else {
-		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("# 站点 %d Geo 规则配置（空）\n", siteID))
-		sb.WriteString(fmt.Sprintf("map $remote_addr $site_%d_geo_action {\n", siteID))
-		sb.WriteString("    default allow;\n")
-		sb.WriteString("}\n")
-		confPath := filepath.Join(confDir, fmt.Sprintf("site_%d_geo.conf", siteID))
-		os.WriteFile(confPath, []byte(sb.String()), 0644)
-	}
+	// 清理旧的单用途文件
+	os.Remove(filepath.Join(confDir, fmt.Sprintf("site_%d_ip_blacklist.conf", siteID)))
+	os.Remove(filepath.Join(confDir, fmt.Sprintf("site_%d_geo.conf", siteID)))
 }
 
 func (s *AccessRuleService) reloadNginx() {
@@ -522,6 +564,81 @@ func (s *AccessRuleService) reloadNginx() {
 	} else {
 		log.Println("访问控制配置已同步到 Nginx")
 	}
+}
+
+// ==================== 实时访问检查（auth_request 用） ====================
+
+// CheckSiteAccessBlocked 检查指定 IP 是否被站点的访问控制规则阻止
+// 逻辑：
+// 1. 先检查 IP 白名单（allow），如果在白名单中则直接放行
+// 2. 再检查 IP 黑名单（block），如果在黑名单中则拒绝
+// 3. 最后检查 Geo 规则
+// 返回: (是否阻止, 阻止原因, 错误)
+func (s *AccessRuleService) CheckSiteAccessBlocked(clientIP string, siteIDStr string) (bool, string, error) {
+	// 解析 siteID
+	var siteID uint
+	if _, err := fmt.Sscanf(siteIDStr, "%d", &siteID); err != nil {
+		return false, "", err
+	}
+
+	// 获取站点的合并规则
+	merged, err := s.GetSiteMergedRules(siteID)
+	if err != nil {
+		return false, "", err
+	}
+
+	// 1. 检查 IP 白名单（优先级最高）
+	for _, allowedIP := range merged.AllowedIPs {
+		if clientIP == allowedIP {
+			return false, "", nil // 白名单放行
+		}
+		if strings.Contains(allowedIP, "/") {
+			if ipInCIDR(clientIP, allowedIP) {
+				return false, "", nil // 白名单放行
+			}
+		}
+	}
+
+	// 2. 检查 IP 黑名单
+	for _, blockedIP := range merged.BlockedIPs {
+		if clientIP == blockedIP {
+			return true, "IP blacklist", nil
+		}
+		if strings.Contains(blockedIP, "/") {
+			if ipInCIDR(clientIP, blockedIP) {
+				return true, "IP blacklist (CIDR)", nil
+			}
+		}
+	}
+
+	// 3. 检查 Geo 规则
+	if len(merged.GeoRules) > 0 {
+		geoSvc := NewGeoIpService()
+		geoInfo := geoSvc.GetGeo(clientIP)
+		if geoInfo != nil && geoInfo.Country != "Unknown" {
+			countryCode := geoSvc.GetCountryCode(geoInfo.Country)
+			if action, exists := merged.GeoRules[strings.ToUpper(countryCode)]; exists {
+				if action == "block" {
+					return true, "Geo block: " + countryCode, nil
+				}
+			}
+		}
+	}
+
+	return false, "", nil
+}
+
+// ipInCIDR 检查 IP 是否在 CIDR 范围内
+func ipInCIDR(ipStr string, cidrStr string) bool {
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return false
+	}
+	_, ipNet, err := net.ParseCIDR(cidrStr)
+	if err != nil {
+		return false
+	}
+	return ipNet.Contains(ip)
 }
 
 // ==================== 辅助函数 ====================
@@ -546,6 +663,10 @@ func validateItemDto(dto *AccessRuleItemDto) error {
 		}
 		if !isValidIPorCIDR(dto.IPAddress) {
 			return fmt.Errorf("无效的 IP 地址或 CIDR 格式: %s", dto.IPAddress)
+		}
+		// IP 条目也需要 action
+		if dto.Action != "allow" && dto.Action != "block" {
+			dto.Action = "block" // 默认 block
 		}
 	case "geo":
 		if dto.CountryCode == "" {
@@ -594,4 +715,17 @@ func ruleToDto(rule *model.AccessRule) *AccessRuleDto {
 		}
 	}
 	return dto
+}
+
+func isValidIPorCIDR(s string) bool {
+	if len(s) == 0 || len(s) > 50 {
+		return false
+	}
+	for _, c := range s {
+		if !((c >= '0' && c <= '9') || c == '.' || c == '/' || c == ':' ||
+			(c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return true
 }

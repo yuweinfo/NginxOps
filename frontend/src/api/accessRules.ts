@@ -9,7 +9,7 @@ export interface AccessRuleItem {
   itemType: 'ip' | 'geo'
   ipAddress: string
   countryCode: string
-  action: 'allow' | 'block'
+  action: 'allow' | 'block'  // IP 和 Geo 均使用：allow=允许, block=拒绝
   note: string
 }
 

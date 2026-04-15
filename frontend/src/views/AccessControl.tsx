@@ -427,17 +427,31 @@ export default function AccessControl() {
                 <div className="space-y-2">
                   {form.items.map((item, index) => (
                     <div key={index} className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
-                      <Badge variant={item.itemType === 'ip' ? 'destructive' : 'default'} className="text-xs shrink-0">
-                        {item.itemType === 'ip' ? 'IP' : '地区'}
+                      <Badge variant={item.itemType === 'ip' ? (item.action === 'block' ? 'destructive' : 'default') : 'default'} className="text-xs shrink-0">
+                        {item.itemType === 'ip' ? (item.action === 'block' ? 'IP拒绝' : 'IP允许') : '地区'}
                       </Badge>
 
                       {item.itemType === 'ip' ? (
-                        <Input
-                          placeholder="192.168.1.0/24"
-                          value={item.ipAddress}
-                          onChange={(e) => updateItem(index, { ipAddress: e.target.value })}
-                          className="h-8 text-sm flex-1"
-                        />
+                        <>
+                          <Input
+                            placeholder="192.168.1.0/24"
+                            value={item.ipAddress}
+                            onChange={(e) => updateItem(index, { ipAddress: e.target.value })}
+                            className="h-8 text-sm flex-1"
+                          />
+                          <Select
+                            value={item.action}
+                            onValueChange={(value: 'allow' | 'block') => updateItem(index, { action: value })}
+                          >
+                            <SelectTrigger className="h-8 text-sm w-24">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="block">拒绝</SelectItem>
+                              <SelectItem value="allow">允许</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </>
                       ) : (
                         <>
                           <Select
@@ -541,18 +555,34 @@ function RuleDetail({ ruleId }: { ruleId: number }) {
     return <div className="flex justify-center py-4"><Loader2 className="h-4 w-4 animate-spin" /></div>
   }
 
-  const ipItems = rule.items.filter(i => i.itemType === 'ip')
+  const ipBlockItems = rule.items.filter(i => i.itemType === 'ip' && i.action === 'block')
+  const ipAllowItems = rule.items.filter(i => i.itemType === 'ip' && i.action !== 'block')
   const geoItems = rule.items.filter(i => i.itemType === 'geo')
 
   return (
     <div className="grid grid-cols-2 gap-4">
-      {ipItems.length > 0 && (
+      {ipBlockItems.length > 0 && (
         <div>
           <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
             <Ban className="h-4 w-4" /> IP 黑名单
           </h4>
           <div className="space-y-1">
-            {ipItems.map(item => (
+            {ipBlockItems.map(item => (
+              <div key={item.id} className="flex items-center gap-2 text-sm p-1.5 bg-muted/50 rounded">
+                <code className="font-mono text-xs">{item.ipAddress}</code>
+                {item.note && <span className="text-xs text-muted-foreground">- {item.note}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {ipAllowItems.length > 0 && (
+        <div>
+          <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+            <Shield className="h-4 w-4 text-emerald-500" /> IP 白名单
+          </h4>
+          <div className="space-y-1">
+            {ipAllowItems.map(item => (
               <div key={item.id} className="flex items-center gap-2 text-sm p-1.5 bg-muted/50 rounded">
                 <code className="font-mono text-xs">{item.ipAddress}</code>
                 {item.note && <span className="text-xs text-muted-foreground">- {item.note}</span>}
@@ -583,7 +613,7 @@ function RuleDetail({ ruleId }: { ruleId: number }) {
           </div>
         </div>
       )}
-      {ipItems.length === 0 && geoItems.length === 0 && (
+      {ipBlockItems.length === 0 && ipAllowItems.length === 0 && geoItems.length === 0 && (
         <div className="col-span-2 text-center py-4 text-sm text-muted-foreground">该规则没有条目</div>
       )}
     </div>

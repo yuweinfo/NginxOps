@@ -32,7 +32,6 @@ export interface Site {
   gzip: boolean
   cache: boolean
   maxBodySize: number                   // 最大上传大小（MB），默认200MB
-  accessControlMode: 'custom'  // 访问控制模式 (新设计: custom=通过规则关联)
   accessRuleIds: number[]               // 关联的访问规则ID列表
   enabled: boolean
   config: string
@@ -57,7 +56,6 @@ export interface SiteDto {
   gzip?: boolean
   cache?: boolean
   maxBodySize?: number  // 最大上传大小（MB），默认200MB
-  accessControlMode?: 'custom'  // 访问控制模式
   accessRuleIds?: number[]      // 关联的访问规则ID列表
   enabled?: boolean
   config?: string
