@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"nginxops/internal/config"
 	"nginxops/internal/database"
@@ -248,7 +249,7 @@ func main() {
 		port = 8080
 	}
 	log.Printf("Server starting on port %d...", port)
-	if err := r.Run(":8080"); err != nil {
+	if err := r.Run(fmt.Sprintf(":%d", port)); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }

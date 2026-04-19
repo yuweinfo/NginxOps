@@ -169,7 +169,20 @@ func (h *SetupHandler) InitializeSystem(c *gin.Context) {
 	}
 
 	log.Println("System initialization completed successfully!")
-	
+
+	// 如果使用内置数据库，启动 supervisor 管理的 PostgreSQL
+	if !req.UseExternalDB {
+		log.Println("Starting PostgreSQL under supervisor control...")
+		cmd := exec.Command("supervisorctl", "-c", "/tmp/supervisord.conf", "start", "postgresql")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			log.Printf("supervisorctl start postgresql warning: %s (output: %s)", err, string(output))
+			// 不影响主流程，只是无法由 supervisor 管理
+		} else {
+			log.Println("PostgreSQL started under supervisor control!")
+		}
+	}
+
 	// 返回成功响应
 	response.SuccessWithMessage(c, "系统初始化成功", gin.H{
 		"success": true,
