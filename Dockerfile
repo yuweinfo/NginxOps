@@ -1,6 +1,6 @@
 # =====================================================
 # NginxOps - 统一镜像构建
-# 包含：Go后端 + 前端 + PostgreSQL + Nginx + Supervisor
+# 包含：Go后端 + 前端 + PostgreSQL + Nginx
 # 配置文件：/data/config.yml
 # =====================================================
 
@@ -43,13 +43,12 @@ RUN apk add --no-cache \
     nginx \
     postgresql \
     postgresql-contrib \
-    supervisor \
     curl \
     bash \
     tzdata \
     ca-certificates \
     openssl \
-    && mkdir -p /var/log/supervisor \
+    psmisc \
     && mkdir -p /var/log/nginx \
     && mkdir -p /var/lib/postgresql \
     && mkdir -p /run/postgresql \
@@ -74,7 +73,6 @@ COPY backend/migrations /app/migrations
 
 # 复制配置文件
 COPY docker/nginx.conf /etc/nginx/nginx.conf
-COPY docker/supervisord.conf /etc/supervisord.conf
 COPY docker/entrypoint.sh /entrypoint.sh
 COPY docker/init-db.sh /init-db.sh
 
