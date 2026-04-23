@@ -649,15 +649,11 @@ func countRuleItems(items []model.AccessRuleItem) (ipCount, geoCount int) {
 func validateItemDto(dto *AccessRuleItemDto) error {
 	switch dto.ItemType {
 	case "ip":
-		if dto.IPAddress == "" {
-			return fmt.Errorf("IP 条目缺少 IP 地址")
+		if err := validateIPItem(dto.IPAddress); err != nil {
+			return err
 		}
-		if !isValidIPorCIDR(dto.IPAddress) {
-			return fmt.Errorf("无效的 IP 地址或 CIDR 格式: %s", dto.IPAddress)
-		}
-		// IP 条目也需要 action
 		if dto.Action != "allow" && dto.Action != "block" {
-			dto.Action = "block" // 默认 block
+			dto.Action = "block"
 		}
 	case "geo":
 		if dto.CountryCode == "" {
@@ -712,11 +708,67 @@ func isValidIPorCIDR(s string) bool {
 	if len(s) == 0 || len(s) > 50 {
 		return false
 	}
-	for _, c := range s {
-		if !((c >= '0' && c <= '9') || c == '.' || c == '/' || c == ':' ||
-			(c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+
+	if ip := net.ParseIP(s); ip != nil {
+		return true
+	}
+
+	if _, _, err := net.ParseCIDR(s); err == nil {
+		return true
+	}
+
+	return false
+}
+
+func validateIPItem(ipAddress string) error {
+	if ipAddress == "" {
+		return fmt.Errorf("IP 地址不能为空")
+	}
+
+	if !isValidIPorCIDR(ipAddress) {
+		return fmt.Errorf("无效的 IP 地址或 CIDR 格式: %s", ipAddress)
+	}
+
+	if isPrivateIP(ipAddress) {
+		log.Printf("警告: 规则包含私有 IP 地址: %s", ipAddress)
+	}
+
+	return nil
+}
+
+func isPrivateIP(ipStr string) bool {
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		if _, ipNet, err := net.ParseCIDR(ipStr); err == nil {
+			if ipNet != nil {
+				ip = ipNet.IP
+			}
+		}
+		if ip == nil {
 			return false
 		}
 	}
-	return true
+
+	privateIPBlocks := []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"127.0.0.0/8",
+		"169.254.0.0/16",
+		"::1/128",
+		"fc00::/7",
+		"fe80::/10",
+	}
+
+	for _, block := range privateIPBlocks {
+		_, cidr, err := net.ParseCIDR(block)
+		if err != nil {
+			continue
+		}
+		if cidr.Contains(ip) {
+			return true
+		}
+	}
+
+	return false
 }

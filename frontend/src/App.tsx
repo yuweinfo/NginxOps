@@ -82,8 +82,12 @@ export default function App() {
           {/* Welcome 页面 - 无需检查配置 */}
           <Route path="/welcome" element={<Welcome />} />
           
-          {/* Login 页面 */}
-          <Route path="/login" element={<Login />} />
+          {/* Login 页面 - 需要配置检查 */}
+          <Route path="/login" element={
+            <SetupGuard>
+              <Login />
+            </SetupGuard>
+          } />
           
           {/* 需要配置检查的路由 */}
           <Route

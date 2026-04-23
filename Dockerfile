@@ -1,6 +1,6 @@
 # =====================================================
 # NginxOps - 应用镜像构建
-# 包含：Go后端 + 前端 + Nginx + Supervisor
+# 包含：Go后端 + 前端 + Nginx
 # 数据库：外部 PostgreSQL
 # 配置文件：/data/config.yml
 # =====================================================
@@ -34,13 +34,11 @@ ENV LANG=C.UTF-8 \
 
 RUN apk add --no-cache \
     nginx \
-    supervisor \
     curl \
     bash \
     tzdata \
     ca-certificates \
     openssl \
-    && mkdir -p /var/log/supervisor \
     && mkdir -p /var/log/nginx \
     && mkdir -p /usr/share/nginx/html
 
@@ -56,7 +54,6 @@ COPY --from=backend-builder /app/nginxops /app/nginxops
 COPY backend/migrations /app/migrations
 
 COPY docker/nginx.conf /etc/nginx/nginx.conf
-COPY docker/supervisord.conf /etc/supervisord.conf
 COPY docker/entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh /app/nginxops

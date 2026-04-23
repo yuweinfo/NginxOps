@@ -6,6 +6,8 @@ import (
 	"nginxops/internal/database"
 	"nginxops/internal/service"
 	"nginxops/pkg/response"
+	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
@@ -77,6 +79,12 @@ func (h *SetupHandler) InitializeSystem(c *gin.Context) {
 		"success": true,
 		"message": "系统初始化完成，请使用管理员账号登录",
 	})
+
+	go func() {
+		time.Sleep(1 * time.Second)
+		log.Println("Exiting to restart service in main mode...")
+		os.Exit(0)
+	}()
 }
 
 func createAdminUser(username, email, password string) error {
