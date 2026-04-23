@@ -26,6 +26,7 @@ const emptyData: DashboardData = {
   statusDistribution: { '2xx': 0, '3xx': 0, '4xx': 0, '5xx': 0 },
   ipLocations: [],
   ipRegionRank: [],
+  ipTopRank: [],
 }
 
 export default function Dashboard() {
@@ -67,6 +68,7 @@ export default function Dashboard() {
             statusDistribution: res.data.statusDistribution || { '2xx': 0, '3xx': 0, '4xx': 0, '5xx': 0 },
             ipLocations: res.data.ipLocations || [],
             ipRegionRank: res.data.ipRegionRank || [],
+            ipTopRank: res.data.ipTopRank || [],
           })
         } else {
           setError(res.message || '获取数据失败')
@@ -567,6 +569,42 @@ export default function Dashboard() {
                 ))}
               </div>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* IP Access Top 10 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-medium">IP 访问排行 (Top 10)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {(data?.ipTopRank || []).map((item, index) => (
+              <div key={index} className="flex items-center gap-3 text-sm p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                <span
+                  className={cn(
+                    "w-6 h-6 flex items-center justify-center rounded text-xs font-bold",
+                    index === 0 ? "bg-yellow-500 text-white" :
+                    index === 1 ? "bg-gray-400 text-white" :
+                    index === 2 ? "bg-amber-600 text-white" :
+                    "bg-muted text-muted-foreground"
+                  )}
+                >
+                  {index + 1}
+                </span>
+                <span className="font-mono text-xs flex-shrink-0 w-32">{item.ip}</span>
+                <span className="text-muted-foreground text-xs">({item.region || 'Unknown'})</span>
+                <div className="flex-1" />
+                <span className="font-medium tabular-nums">{item.requests.toLocaleString()}</span>
+                <span className="text-muted-foreground text-xs">次</span>
+              </div>
+            ))}
+            {(!data?.ipTopRank || data.ipTopRank.length === 0) && (
+              <div className="text-center text-muted-foreground py-8">
+                暂无访问数据
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

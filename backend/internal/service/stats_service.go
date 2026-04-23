@@ -31,6 +31,7 @@ func (s *StatsService) GetDashboard() map[string]interface{} {
 	hourlyTrend := collector.GetHourlyTrend()
 	ipLocations := collector.GetIPLocations(100)
 	regionRank := collector.GetRegionRank(10)
+	ipTopRank := collector.GetIPTopRank(10)
 
 	// 活跃站点数（从数据库获取，因为变化频率低）
 	sites, _ := s.siteRepo.FindByEnabled(true)
@@ -47,6 +48,7 @@ func (s *StatsService) GetDashboard() map[string]interface{} {
 		"statusDistribution": statusDistribution,
 		"ipLocations":        ipLocations,
 		"ipRegionRank":       regionRank,
+		"ipTopRank":          ipTopRank,
 	}
 }
 

@@ -665,6 +665,50 @@ func (s *LogCollectorService) GetRegionRank(limit int) []map[string]interface{} 
 	return result
 }
 
+// GetIPTopRank 获取IP访问排名（Top N）
+func (s *LogCollectorService) GetIPTopRank(limit int) []map[string]interface{} {
+	s.ipLocationCountsMu.RLock()
+	defer s.ipLocationCountsMu.RUnlock()
+
+	type ipStat struct {
+		IP       string
+		City     string
+		Requests int64
+	}
+
+	stats := make([]ipStat, 0, len(s.ipLocationCounts))
+	for ip, stat := range s.ipLocationCounts {
+		stats = append(stats, ipStat{
+			IP:       ip,
+			City:     stat.City,
+			Requests: stat.Requests.Load(),
+		})
+	}
+
+	// 排序（降序）
+	for i := 0; i < len(stats)-1; i++ {
+		for j := i + 1; j < len(stats); j++ {
+			if stats[j].Requests > stats[i].Requests {
+				stats[i], stats[j] = stats[j], stats[i]
+			}
+		}
+	}
+
+	if limit > len(stats) {
+		limit = len(stats)
+	}
+
+	result := make([]map[string]interface{}, 0, limit)
+	for i := 0; i < limit; i++ {
+		result = append(result, map[string]interface{}{
+			"ip":       stats[i].IP,
+			"region":   stats[i].City,
+			"requests": stats[i].Requests,
+		})
+	}
+	return result
+}
+
 // ResetDailyStats 每日重置统计（由定时任务调用）
 func (s *LogCollectorService) ResetDailyStats() {
 	s.todayPV.Store(0)
