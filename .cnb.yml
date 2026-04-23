@@ -45,3 +45,4 @@ main:
             PLUGIN_GIT_EMAIL: "yuwei1228@hotmail.com"
             username: ${GIT_USERNAME}
             password: ${GIT_ACCESS_TOKEN}
+            sync_mode: rebase
