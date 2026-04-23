@@ -3,19 +3,14 @@
 # 首次启动时，系统将引导您通过 Web 界面完成配置
 # =====================================================
 
-# 数据库配置
+# 数据库配置 (PostgreSQL)
 database:
-  # 是否使用外部数据库
-  # true: 使用外部 PostgreSQL 数据库
-  # false: 使用内置 PostgreSQL 数据库
-  useExternal: false
-  
-  # 外部数据库连接信息 (useExternal=true 时需要配置)
   host: your-db-host
   port: 5432
   name: nginxops
-  user: postgres
+  user: nginxops
   password: your-db-password
+  sslmode: disable
 
 # JWT 安全配置
 jwt:

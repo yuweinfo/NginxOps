@@ -13,51 +13,72 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// 初始化模式
-var setupMode = false
-
 func main() {
-	// 检查配置文件是否存在
 	if !config.IsConfigured() {
 		log.Println("Config file not found, entering setup mode...")
-		setupMode = true
-		// 加载默认配置
 		config.LoadConfig()
-	} else {
-		// 加载配置
-		if err := config.LoadConfig(); err != nil {
-			log.Fatalf("Failed to load config: %v", err)
-		}
-
-		// 初始化数据库
-		if err := database.InitDB(); err != nil {
-			log.Fatalf("Failed to connect database: %v", err)
-		}
-
-		// 执行数据库迁移
-		if err := database.RunMigrations(); err != nil {
-			log.Fatalf("Failed to run migrations: %v", err)
-		}
-
-		// 初始化默认用户（使用配置中的管理员账号）
-		authService := service.NewAuthService()
-		if err := authService.InitDefaultUser(); err != nil {
-			log.Printf("Warning: Failed to init default user: %v", err)
-		}
-
-		// 启动日志收集服务（单例，内存聚合统计）
-		service.GetLogCollector().Start()
+		startSetupServer()
+		return
 	}
 
-	// 创建Gin引擎
-	r := gin.Default()
+	if err := config.LoadConfig(); err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
 
-	// 全局中间件
+	if err := database.InitDB(); err != nil {
+		log.Fatalf("Failed to connect database: %v", err)
+	}
+
+	if err := database.RunMigrations(); err != nil {
+		log.Fatalf("Failed to run migrations: %v", err)
+	}
+
+	authService := service.NewAuthService()
+	if err := authService.InitDefaultUser(); err != nil {
+		log.Printf("Warning: Failed to init default user: %v", err)
+	}
+
+	service.GetLogCollector().Start()
+
+	startMainServer()
+}
+
+func startSetupServer() {
+	r := gin.Default()
+	r.Use(middleware.CORS())
+	r.Use(gin.Recovery())
+
+	setupHandler := handler.NewSetupHandler()
+	dbTestHandler := handler.NewDBTestHandler()
+
+	api := r.Group("/api")
+	{
+		api.GET("/health", handler.HealthCheck)
+
+		setup := api.Group("/setup")
+		{
+			setup.GET("/status", setupHandler.CheckSetupStatus)
+			setup.POST("/init", setupHandler.InitializeSystem)
+			setup.POST("/test-db", dbTestHandler.TestConnection)
+		}
+	}
+
+	r.NoRoute(func(c *gin.Context) {
+		response.NotFound(c, "Not found")
+	})
+
+	log.Println("Setup mode - Server starting on port 8080...")
+	if err := r.Run(":8080"); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
+}
+
+func startMainServer() {
+	r := gin.Default()
 	r.Use(middleware.CORS())
 	r.Use(gin.Recovery())
 	r.Use(middleware.AuditMiddleware())
 
-	// 初始化Handler
 	authHandler := handler.NewAuthHandler()
 	userHandler := handler.NewUserHandler()
 	siteHandler := handler.NewSiteHandler()
@@ -75,20 +96,15 @@ func main() {
 	accessRuleHandler := handler.NewAccessRuleHandler()
 	accessCheckHandler := handler.NewAccessCheckHandler()
 
-	// WebSocket Handler
 	logWsHandler := websocket.NewLogWebSocketHandler()
 
-	// API路由组
 	api := r.Group("/api")
 	{
-		// 公开接口 - 无需认证
 		api.GET("/health", handler.HealthCheck)
 		api.GET("/geo/:ip", geoHandler.GetGeo)
 
-		// 访问控制检查 - Nginx auth_request 内部调用（无需认证）
 		api.GET("/access-control/check/site/:siteId", accessCheckHandler.CheckSiteAccess)
 
-		// 初始化接口 - 无需认证
 		setup := api.Group("/setup")
 		{
 			setup.GET("/status", setupHandler.CheckSetupStatus)
@@ -104,14 +120,11 @@ func main() {
 		}
 	}
 
-	// WebSocket路由
 	r.GET("/ws/logs", logWsHandler.HandleWebSocket)
 
-	// 需要认证的路由
 	protected := api.Group("")
 	protected.Use(middleware.AuthRequired())
 	{
-		// 用户相关
 		users := protected.Group("/users")
 		{
 			users.GET("/me", userHandler.GetCurrentUser)
@@ -119,7 +132,6 @@ func main() {
 			users.PUT("/me", userHandler.UpdateProfile)
 		}
 
-		// 站点相关
 		sites := protected.Group("/sites")
 		{
 			sites.GET("", siteHandler.List)
@@ -133,7 +145,6 @@ func main() {
 			sites.POST("/sync", siteHandler.SyncAll)
 		}
 
-		// Upstream相关
 		upstreams := protected.Group("/upstreams")
 		{
 			upstreams.GET("", upstreamHandler.List)
@@ -146,7 +157,6 @@ func main() {
 			upstreams.POST("/:id/health-check", healthHandler.CheckUpstream)
 		}
 
-		// 证书相关
 		certs := protected.Group("/certificates")
 		{
 			certs.GET("", certHandler.List)
@@ -162,10 +172,8 @@ func main() {
 			certs.PUT("/:id/auto-renew", certHandler.ToggleAutoRenew)
 		}
 
-		// Nginx配置和控制
 		nginx := protected.Group("/nginx")
 		{
-			// 配置相关
 			nginx.GET("/config", nginxHandler.GetConfig)
 			nginx.GET("/config/raw", nginxHandler.GetConfigRaw)
 			nginx.POST("/config/save", nginxHandler.SaveConfig)
@@ -174,7 +182,6 @@ func main() {
 			nginx.POST("/confd/:fileName", nginxHandler.SaveConfFile)
 			nginx.GET("/history", nginxHandler.GetHistory)
 
-			// 控制相关
 			nginx.GET("/status", nginxHandler.GetStatus)
 			nginx.POST("/start", nginxHandler.Start)
 			nginx.POST("/stop", nginxHandler.Stop)
@@ -183,14 +190,12 @@ func main() {
 			nginx.POST("/test", nginxHandler.TestConfig)
 		}
 
-		// 统计相关
 		stats := protected.Group("/stats")
 		{
 			stats.GET("/dashboard", statsHandler.GetDashboard)
 			stats.GET("/logs", statsHandler.QueryLogs)
 		}
 
-		// 审计日志
 		audit := protected.Group("/audit")
 		{
 			audit.GET("", auditHandler.List)
@@ -199,7 +204,6 @@ func main() {
 			audit.GET("/actions", auditHandler.GetActions)
 		}
 
-		// DNS服务商
 		dns := protected.Group("/dns-providers")
 		{
 			dns.GET("", dnsHandler.List)
@@ -210,17 +214,14 @@ func main() {
 			dns.PUT("/:id/default", dnsHandler.SetDefault)
 		}
 
-		// 网络信息
 		network := protected.Group("/network")
 		{
 			network.GET("/info", networkHandler.GetNetworkInfo)
 			network.POST("/dns-record", networkHandler.CreateDNSRecord)
 		}
 
-		// 访问规则（规则列表模式）
 		accessRules := protected.Group("/access-rules")
 		{
-			// 规则 CRUD
 			accessRules.GET("", accessRuleHandler.ListRules)
 			accessRules.GET("/:id", accessRuleHandler.GetRule)
 			accessRules.POST("", accessRuleHandler.CreateRule)
@@ -228,21 +229,17 @@ func main() {
 			accessRules.DELETE("/:id", accessRuleHandler.DeleteRule)
 			accessRules.PUT("/:id/toggle", accessRuleHandler.ToggleRule)
 
-			// 站点-规则关联
 			accessRules.GET("/sites/:siteId/rules", accessRuleHandler.GetSiteRules)
 			accessRules.PUT("/sites/:siteId/rules", accessRuleHandler.SetSiteRules)
 
-			// 配置同步
 			accessRules.POST("/sync", accessRuleHandler.SyncConfig)
 		}
 	}
 
-	// 404处理
 	r.NoRoute(func(c *gin.Context) {
 		response.NotFound(c, "Not found")
 	})
 
-	// 启动服务
 	port := config.AppConfig.Server.Port
 	if port == 0 {
 		port = 8080

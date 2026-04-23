@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-NginxOps is a web-based Nginx management platform that provides a unified interface for managing Nginx sites, upstreams (load balancers), SSL certificates (with ACME support), and monitoring access logs. It packages Go backend, React frontend, PostgreSQL, and Nginx into a single Docker image managed by Supervisor.
+NginxOps is a web-based Nginx management platform that provides a unified interface for managing Nginx sites, upstreams (load balancers), SSL certificates (with ACME support), and monitoring access logs. It packages Go backend, React frontend, and Nginx into a Docker image managed by Supervisor. PostgreSQL runs as an external service.
 
 ## Development Commands
 
@@ -76,19 +76,24 @@ docker build -t nginxops:latest .          # Build Docker image
 
 ### Docker Deployment
 
-The application runs as a unified container with Supervisor managing three processes:
-1. **PostgreSQL** - Internal database (optional, can use external DB)
-2. **Go Backend** - API server on port 8899
-3. **Nginx** - Reverse proxy on ports 80/443, serves frontend static files
+The application runs as a unified container with Supervisor managing two processes:
+1. **Go Backend** - API server on port 8080 (proxied via Nginx on 8899)
+2. **Nginx** - Reverse proxy on ports 80/443, serves frontend static files
+
+**PostgreSQL** runs as a separate container (see docker-compose.yml).
 
 **First Run**: If `/data/config.yml` doesn't exist, the system enters setup mode where users configure database and admin credentials via web UI.
 
 **Data Directory** (`/data/`):
 - `config.yml` - Main configuration file
-- `postgresql/` - PostgreSQL data
 - `nginx/conf.d/` - Generated Nginx site configs
 - `nginx/ssl/` - SSL certificates
-- `logs/` - Application, Nginx, and PostgreSQL logs
+- `logs/` - Application and Nginx logs
+
+**Nginx Symlinks** (data persisted to /data):
+- `/etc/nginx/conf.d` → `${DATA_DIR}/nginx/conf.d`
+- `/etc/nginx/ssl` → `${DATA_DIR}/nginx/ssl`
+- `/var/log/nginx` → `${DATA_DIR}/logs/nginx`
 
 ### Authentication Flow
 
@@ -127,6 +132,6 @@ Configuration can be set via `/data/config.yml` or environment variables:
 
 On first run, if `/data/config.yml` doesn't exist, the system enters setup mode:
 1. Frontend shows setup wizard at `/setup`
-2. User configures database (internal/external) and admin credentials
+2. User configures database connection and admin credentials
 3. `POST /api/setup/init` creates config file and initializes database
 4. System restarts in normal mode with authentication enabled

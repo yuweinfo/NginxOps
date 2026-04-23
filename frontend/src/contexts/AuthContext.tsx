@@ -11,7 +11,7 @@ interface AuthContextType {
   token: string | null
   isAuthenticated: boolean
   loading: boolean
-  login: (username: string, password: string) => Promise<boolean>
+  login: (username: string, password: string) => Promise<{ success: boolean; message?: string }>
   logout: () => void
 }
 

@@ -5,7 +5,6 @@ export interface SetupStatusResponse {
 }
 
 export interface SetupRequest {
-  useExternalDB: boolean
   dbHost: string
   dbPort: number
   dbName: string
@@ -32,15 +31,12 @@ export interface DBTestResponse {
 }
 
 export const setupApi = {
-  // 获取初始化状态
   getStatus: () => 
     request.get<SetupStatusResponse>('/setup/status'),
 
-  // 初始化系统
   initialize: (data: SetupRequest) =>
     request.post<{ success: boolean }>('/setup/init', data),
 
-  // 测试数据库连接
   testConnection: (data: DBTestRequest) =>
     request.post<DBTestResponse>('/setup/test-db', data),
 }

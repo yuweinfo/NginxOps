@@ -17,21 +17,49 @@
 
 ```yaml
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nginxops-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nginxops
+      POSTGRES_USER: nginxops
+      POSTGRES_PASSWORD: nginxops123
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nginxops -d nginxops"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nginxops-net
+
   nginxops:
     image: docker.cnb.cool/yuweinfo/nginxops:latest
     container_name: nginxops
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=nginxops
+      - DB_USER=nginxops
+      - DB_PASSWORD=nginxops123
+      - JWT_SECRET=your-secure-jwt-secret-at-least-32-chars
     ports:
-      - "${ADMIN_PORT:-8899}:8899"
-      - "${HTTP_PORT:-80}:80"
-      - "${HTTPS_PORT:-443}:443"
+      - "8899:8899"
+      - "80:80"
+      - "443:443"
     volumes:
       - nginxops-data:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8899/api/health"]
       interval: 30s
       timeout: 10s
-      start_period: 120s
+      start_period: 60s
       retries: 3
     networks:
       - nginxops-net
@@ -42,6 +70,8 @@ networks:
     name: nginxops-net
 
 volumes:
+  postgres-data:
+    name: nginxops-postgres-data
   nginxops-data:
     name: nginxops-data
 ```

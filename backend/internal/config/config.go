@@ -10,11 +10,11 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig `yaml:"server"`
+	Server   ServerConfig   `yaml:"server"`
 	Database DatabaseConfig `yaml:"database"`
-	JWT      JWTConfig `yaml:"jwt"`
-	Nginx    NginxConfig `yaml:"nginx"`
-	ACME     ACMEConfig `yaml:"acme"`
+	JWT      JWTConfig      `yaml:"jwt"`
+	Nginx    NginxConfig    `yaml:"nginx"`
+	ACME     ACMEConfig     `yaml:"acme"`
 }
 
 type ServerConfig struct {
@@ -23,7 +23,7 @@ type ServerConfig struct {
 
 type DatabaseConfig struct {
 	Host     string `yaml:"host"`
-	Port     int `yaml:"port"`
+	Port     int    `yaml:"port"`
 	Name     string `yaml:"name"`
 	User     string `yaml:"user"`
 	Password string `yaml:"password"`
@@ -32,7 +32,7 @@ type DatabaseConfig struct {
 
 type JWTConfig struct {
 	Secret     string `yaml:"secret"`
-	Expiration int64 `yaml:"expiration"` // milliseconds
+	Expiration int64  `yaml:"expiration"`
 }
 
 type NginxConfig struct {
@@ -50,44 +50,34 @@ type ACMEConfig struct {
 
 var AppConfig *Config
 
-// ConfigPath 配置文件路径
 var ConfigPath = "/data/config.yml"
 
-// IsConfigured 检查配置文件是否存在
 func IsConfigured() bool {
 	_, err := os.Stat(ConfigPath)
 	return err == nil
 }
 
 func LoadConfig() error {
-	// 检查配置文件是否存在
 	data, err := os.ReadFile(ConfigPath)
 	if err != nil {
-		// 配置文件不存在时，使用环境变量或默认配置
 		return loadFromEnv()
 	}
 
-	// 解析 YAML 配置
 	AppConfig = &Config{}
 	if err := yaml.Unmarshal(data, AppConfig); err != nil {
 		return fmt.Errorf("failed to parse config file: %w", err)
 	}
 
-	// 设置默认值
 	setDefaults()
 
 	return nil
 }
 
-// loadFromEnv 从环境变量加载配置（用于兼容旧版本或初始化阶段）
 func loadFromEnv() error {
 	AppConfig = &Config{}
-	
-	// 设置默认值
+
 	setDefaults()
 
-	// 环境变量覆盖配置
-	// 数据库配置
 	if host := os.Getenv("DB_HOST"); host != "" {
 		AppConfig.Database.Host = host
 	}
@@ -106,12 +96,10 @@ func loadFromEnv() error {
 		AppConfig.Database.Password = password
 	}
 
-	// JWT配置
 	if secret := os.Getenv("JWT_SECRET"); secret != "" {
 		AppConfig.JWT.Secret = secret
 	}
 
-	// 数据目录
 	if dataDir := os.Getenv("DATA_DIR"); dataDir != "" {
 		AppConfig.Nginx.ConfDir = fmt.Sprintf("%s/nginx/conf.d", dataDir)
 		AppConfig.Nginx.SSLPath = fmt.Sprintf("%s/nginx/ssl", dataDir)
@@ -122,7 +110,6 @@ func loadFromEnv() error {
 	return nil
 }
 
-// setDefaults 设置默认值
 func setDefaults() {
 	if AppConfig.Server.Port == 0 {
 		AppConfig.Server.Port = 8080
@@ -137,10 +124,10 @@ func setDefaults() {
 		AppConfig.Database.Name = "nginxops"
 	}
 	if AppConfig.Database.User == "" {
-		AppConfig.Database.User = "postgres"
+		AppConfig.Database.User = "nginxops"
 	}
 	if AppConfig.Database.Password == "" {
-		AppConfig.Database.Password = "postgres"
+		AppConfig.Database.Password = "nginxops123"
 	}
 	if AppConfig.Database.SSLMode == "" {
 		AppConfig.Database.SSLMode = "disable"

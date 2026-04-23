@@ -10,7 +10,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// SetupConfig 初始化配置结构
 type SetupConfig struct {
 	Database  DatabaseSetupConfig `yaml:"database"`
 	JWT       JWTSetupConfig      `yaml:"jwt"`
@@ -18,12 +17,11 @@ type SetupConfig struct {
 }
 
 type DatabaseSetupConfig struct {
-	UseExternal bool   `yaml:"useExternal"`
-	Host        string `yaml:"host"`
-	Port        int    `yaml:"port"`
-	Name        string `yaml:"name"`
-	User        string `yaml:"user"`
-	Password    string `yaml:"password"`
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	Name     string `yaml:"name"`
+	User     string `yaml:"user"`
+	Password string `yaml:"password"`
 }
 
 type JWTSetupConfig struct {
@@ -40,14 +38,11 @@ func NewSetupService() *SetupService {
 	}
 }
 
-// IsConfigured 检查系统是否已完成初始化配置
 func (s *SetupService) IsConfigured() bool {
-	// 检查配置文件是否存在
 	if _, err := os.Stat(s.configPath); os.IsNotExist(err) {
 		return false
 	}
 
-	// 读取配置文件检查 setupDone 标志
 	config, err := s.LoadConfig()
 	if err != nil {
 		return false
@@ -56,7 +51,6 @@ func (s *SetupService) IsConfigured() bool {
 	return config.SetupDone
 }
 
-// LoadConfig 加载配置文件
 func (s *SetupService) LoadConfig() (*SetupConfig, error) {
 	data, err := ioutil.ReadFile(s.configPath)
 	if err != nil {
@@ -71,9 +65,7 @@ func (s *SetupService) LoadConfig() (*SetupConfig, error) {
 	return &config, nil
 }
 
-// SaveConfig 保存配置文件
 func (s *SetupService) SaveConfig(config *SetupConfig) error {
-	// 确保目录存在
 	dir := filepath.Dir(s.configPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
@@ -91,22 +83,18 @@ func (s *SetupService) SaveConfig(config *SetupConfig) error {
 	return nil
 }
 
-// InitializeSystem 初始化系统配置
 func (s *SetupService) InitializeSystem(req *SetupRequest) error {
-	// 验证请求参数
 	if err := s.validateSetupRequest(req); err != nil {
 		return err
 	}
 
-	// 创建配置
 	config := &SetupConfig{
 		Database: DatabaseSetupConfig{
-			UseExternal: req.UseExternalDB,
-			Host:        req.DBHost,
-			Port:        req.DBPort,
-			Name:        req.DBName,
-			User:        req.DBUser,
-			Password:    req.DBPassword,
+			Host:     req.DBHost,
+			Port:     req.DBPort,
+			Name:     req.DBName,
+			User:     req.DBUser,
+			Password: req.DBPassword,
 		},
 		JWT: JWTSetupConfig{
 			Secret: req.JWTSecret,
@@ -114,7 +102,6 @@ func (s *SetupService) InitializeSystem(req *SetupRequest) error {
 		SetupDone: true,
 	}
 
-	// 保存配置
 	if err := s.SaveConfig(config); err != nil {
 		return err
 	}
@@ -122,9 +109,7 @@ func (s *SetupService) InitializeSystem(req *SetupRequest) error {
 	return nil
 }
 
-// SetupRequest 初始化请求
 type SetupRequest struct {
-	UseExternalDB bool   `json:"useExternalDB"`
 	DBHost        string `json:"dbHost"`
 	DBPort        int    `json:"dbPort"`
 	DBName        string `json:"dbName"`
@@ -137,6 +122,22 @@ type SetupRequest struct {
 }
 
 func (s *SetupService) validateSetupRequest(req *SetupRequest) error {
+	if req.DBHost == "" {
+		return errors.New("数据库主机地址不能为空")
+	}
+	if req.DBPort == 0 {
+		return errors.New("数据库端口不能为空")
+	}
+	if req.DBName == "" {
+		return errors.New("数据库名称不能为空")
+	}
+	if req.DBUser == "" {
+		return errors.New("数据库用户名不能为空")
+	}
+	if req.DBPassword == "" {
+		return errors.New("数据库密码不能为空")
+	}
+
 	if req.JWTSecret == "" || len(req.JWTSecret) < 32 {
 		return errors.New("JWT 密钥必须至少32个字符")
 	}
@@ -153,28 +154,9 @@ func (s *SetupService) validateSetupRequest(req *SetupRequest) error {
 		return errors.New("管理员密码必须至少6个字符")
 	}
 
-	if req.UseExternalDB {
-		if req.DBHost == "" {
-			return errors.New("数据库主机地址不能为空")
-		}
-		if req.DBPort == 0 {
-			return errors.New("数据库端口不能为空")
-		}
-		if req.DBName == "" {
-			return errors.New("数据库名称不能为空")
-		}
-		if req.DBUser == "" {
-			return errors.New("数据库用户名不能为空")
-		}
-		if req.DBPassword == "" {
-			return errors.New("数据库密码不能为空")
-		}
-	}
-
 	return nil
 }
 
-// GetDatabaseConfig 获取数据库配置
 func (s *SetupService) GetDatabaseConfig() (*DatabaseSetupConfig, error) {
 	config, err := s.LoadConfig()
 	if err != nil {
@@ -183,7 +165,6 @@ func (s *SetupService) GetDatabaseConfig() (*DatabaseSetupConfig, error) {
 	return &config.Database, nil
 }
 
-// GetJWTConfig 获取 JWT 配置
 func (s *SetupService) GetJWTConfig() (*JWTSetupConfig, error) {
 	config, err := s.LoadConfig()
 	if err != nil {

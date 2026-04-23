@@ -1,18 +1,60 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nginxops-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nginxops}
+      POSTGRES_USER: ${POSTGRES_USER:-nginxops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nginxops123}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nginxops} -d ${POSTGRES_DB:-nginxops}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - nginxops-network
+
   nginxops:
-    image: docker.cnb.cool/yuweinfo/nginxops:latest
+    build: .
+    image: nginxops:latest
     container_name: nginxops
     restart: unless-stopped
-    network_mode: host
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${POSTGRES_DB:-nginxops}
+      - DB_USER=${POSTGRES_USER:-nginxops}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-nginxops123}
+      - JWT_SECRET=${JWT_SECRET:-change-this-to-a-secure-random-string-at-least-32-chars}
+    ports:
+      - "8899:8899"
+      - "80:80"
+      - "443:443"
     volumes:
       - nginxops-data:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8899/api/health"]
       interval: 30s
       timeout: 10s
-      start_period: 120s
+      start_period: 60s
       retries: 3
+    networks:
+      - nginxops-network
 
 volumes:
+  postgres-data:
+    name: nginxops-postgres-data
   nginxops-data:
     name: nginxops-data
+
+networks:
+  nginxops-network:
+    name: nginxops-network
+    driver: bridge

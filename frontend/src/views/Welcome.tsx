@@ -5,17 +5,15 @@ import { useToast } from '@/hooks/use-toast'
 import { setupApi, type SetupRequest } from '@/api/setup'
 import { Progress } from '@/components/ui/progress'
 
-type Step = 'dbType' | 'dbConfig' | 'jwt' | 'admin' | 'complete'
+type Step = 'dbConfig' | 'jwt' | 'admin' | 'complete'
 
 const stepConfig: { key: Step; title: string; description: string; icon: typeof Database }[] = [
-  { key: 'dbType', title: '选择数据库', description: '选择您的数据库类型', icon: Database },
   { key: 'dbConfig', title: '数据库配置', description: '配置数据库连接', icon: Server },
   { key: 'jwt', title: '安全设置', description: '配置 JWT 密钥', icon: Shield },
   { key: 'admin', title: '管理员账户', description: '创建初始管理员', icon: User },
   { key: 'complete', title: '配置完成', description: '正在初始化系统', icon: Check },
 ]
 
-// 检测操作系统
 function detectOS(): 'windows' | 'mac' | 'linux' {
   const ua = navigator.userAgent.toLowerCase()
   if (ua.includes('win')) return 'windows'
@@ -26,7 +24,7 @@ function detectOS(): 'windows' | 'mac' | 'linux' {
 export default function Welcome() {
   const navigate = useNavigate()
   const { toast } = useToast()
-  const [currentStep, setCurrentStep] = useState<Step>('dbType')
+  const [currentStep, setCurrentStep] = useState<Step>('dbConfig')
   const [loading, setLoading] = useState(false)
   const [testingDB, setTestingDB] = useState(false)
   const [dbTestResult, setDbTestResult] = useState<{ success: boolean; message: string } | null>(null)
@@ -34,26 +32,22 @@ export default function Welcome() {
   const [direction, setDirection] = useState<'left' | 'right'>('right')
   const [checkingStatus, setCheckingStatus] = useState(true)
 
-  // 所有 useState 必须在条件返回之前声明
-  const [useExternalDB, setUseExternalDB] = useState(false)
-  const [dbHost, setDbHost] = useState('')
+  const [dbHost, setDbHost] = useState('postgres')
   const [dbPort, setDbPort] = useState('5432')
   const [dbName, setDbName] = useState('nginxops')
-  const [dbUser, setDbUser] = useState('postgres')
-  const [dbPassword, setDbPassword] = useState('')
+  const [dbUser, setDbUser] = useState('nginxops')
+  const [dbPassword, setDbPassword] = useState('nginxops123')
   const [jwtSecret, setJwtSecret] = useState('')
   const [adminUsername, setAdminUsername] = useState('admin')
   const [adminEmail, setAdminEmail] = useState('')
   const [adminPassword, setAdminPassword] = useState('')
   const [copiedCommand, setCopiedCommand] = useState<string | null>(null)
 
-  // 检查系统是否已配置，防止已初始化用户重新进入
   useEffect(() => {
     const checkStatus = async () => {
       try {
         const response = await setupApi.getStatus()
         if (response.data?.configured) {
-          // 已配置，重定向到登录页
           navigate('/login', { replace: true })
           return
         }
@@ -66,7 +60,6 @@ export default function Welcome() {
     checkStatus()
   }, [navigate])
 
-  // 正在检查状态时显示加载
   if (checkingStatus) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neutral-50">
@@ -135,13 +128,11 @@ export default function Welcome() {
   const validateStep = (step: Step): boolean => {
     switch (step) {
       case 'dbConfig':
-        if (useExternalDB) {
-          if (!dbHost.trim()) { toast({ title: '请输入数据库主机地址', variant: 'destructive' }); return false }
-          if (!dbPort.trim()) { toast({ title: '请输入数据库端口', variant: 'destructive' }); return false }
-          if (!dbName.trim()) { toast({ title: '请输入数据库名称', variant: 'destructive' }); return false }
-          if (!dbUser.trim()) { toast({ title: '请输入数据库用户名', variant: 'destructive' }); return false }
-          if (!dbPassword.trim()) { toast({ title: '请输入数据库密码', variant: 'destructive' }); return false }
-        }
+        if (!dbHost.trim()) { toast({ title: '请输入数据库主机地址', variant: 'destructive' }); return false }
+        if (!dbPort.trim()) { toast({ title: '请输入数据库端口', variant: 'destructive' }); return false }
+        if (!dbName.trim()) { toast({ title: '请输入数据库名称', variant: 'destructive' }); return false }
+        if (!dbUser.trim()) { toast({ title: '请输入数据库用户名', variant: 'destructive' }); return false }
+        if (!dbPassword.trim()) { toast({ title: '请输入数据库密码', variant: 'destructive' }); return false }
         return true
       case 'jwt':
         if (!jwtSecret.trim() || jwtSecret.length < 32) {
@@ -181,12 +172,6 @@ export default function Welcome() {
   const handleNext = () => {
     if (!validateStep(currentStep)) return
     
-    // 特殊处理：如果选择内部数据库，跳过 dbConfig 步骤
-    if (currentStep === 'dbType' && !useExternalDB) {
-      goToStep('jwt', 'right')
-      return
-    }
-    
     const nextIndex = currentStepIndex + 1
     if (nextIndex < stepConfig.length) {
       goToStep(stepConfig[nextIndex].key, 'right')
@@ -194,12 +179,6 @@ export default function Welcome() {
   }
 
   const handlePrev = () => {
-    // 特殊处理：如果之前选择的是内部数据库，从 jwt 返回到 dbType
-    if (currentStep === 'jwt' && !useExternalDB) {
-      goToStep('dbType', 'left')
-      return
-    }
-    
     const prevIndex = currentStepIndex - 1
     if (prevIndex >= 0) {
       goToStep(stepConfig[prevIndex].key, 'left')
@@ -211,12 +190,11 @@ export default function Welcome() {
     setLoading(true)
     try {
       const req: SetupRequest = {
-        useExternalDB,
-        dbHost: useExternalDB ? dbHost : '127.0.0.1',
-        dbPort: useExternalDB ? parseInt(dbPort) : 5432,
-        dbName: useExternalDB ? dbName : 'nginxops',
-        dbUser: useExternalDB ? dbUser : 'postgres',
-        dbPassword: useExternalDB ? dbPassword : 'postgres',
+        dbHost,
+        dbPort: parseInt(dbPort),
+        dbName,
+        dbUser,
+        dbPassword,
         jwtSecret,
         adminUsername,
         adminEmail,
@@ -250,146 +228,85 @@ export default function Welcome() {
     setTimeout(poll, 2000)
   }
 
-  // 渲染步骤内容
   const renderStepContent = () => {
     switch (currentStep) {
-      case 'dbType':
-        return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-4">
-              <button
-                onClick={() => { setUseExternalDB(false); setDbTestResult(null) }}
-                className={`w-full p-6 rounded-2xl border-2 transition-all duration-200 text-left ${
-                  !useExternalDB 
-                    ? 'border-neutral-900 bg-neutral-50 shadow-sm' 
-                    : 'border-neutral-200 hover:border-neutral-300'
-                }`}
-              >
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-neutral-100 flex items-center justify-center shrink-0">
-                    <Database className="w-6 h-6 text-neutral-600" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-medium text-neutral-900 text-lg">内部数据库</div>
-                    <p className="text-sm text-neutral-500 mt-1">
-                      系统将自动配置内置 PostgreSQL 数据库
-                    </p>
-                  </div>
-                  {!useExternalDB && (
-                    <Check className="w-5 h-5 text-neutral-900 shrink-0 mt-1" />
-                  )}
-                </div>
-              </button>
-              
-              <button
-                onClick={() => { setUseExternalDB(true); setDbTestResult(null) }}
-                className={`w-full p-6 rounded-2xl border-2 transition-all duration-200 text-left ${
-                  useExternalDB 
-                    ? 'border-neutral-900 bg-neutral-50 shadow-sm' 
-                    : 'border-neutral-200 hover:border-neutral-300'
-                }`}
-              >
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-neutral-100 flex items-center justify-center shrink-0">
-                    <Server className="w-6 h-6 text-neutral-600" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-medium text-neutral-900 text-lg">外部数据库</div>
-                    <p className="text-sm text-neutral-500 mt-1">
-                      连接已有的 PostgreSQL 数据库实例
-                    </p>
-                  </div>
-                  {useExternalDB && (
-                    <Check className="w-5 h-5 text-neutral-900 shrink-0 mt-1" />
-                  )}
-                </div>
-              </button>
-            </div>
-          </div>
-        )
-
       case 'dbConfig':
         return (
           <div className="space-y-4">
-            {!useExternalDB ? (
-              <div className="p-4 bg-neutral-50 rounded-xl border border-neutral-100 text-sm text-neutral-600 text-center">
-                使用内置数据库，无需额外配置
+            <div className="p-3 bg-blue-50 rounded-lg border border-blue-100 text-sm text-blue-700">
+              请配置 PostgreSQL 数据库连接信息
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1.5">主机地址</label>
+                <input
+                  type="text"
+                  value={dbHost}
+                  onChange={(e) => setDbHost(e.target.value)}
+                  placeholder="数据库主机"
+                  className="w-full h-10 px-3 text-sm border border-neutral-200 rounded-lg focus:border-neutral-400 focus:ring-2 focus:ring-neutral-100 outline-none"
+                />
               </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1.5">主机地址</label>
-                    <input
-                      type="text"
-                      value={dbHost}
-                      onChange={(e) => setDbHost(e.target.value)}
-                      placeholder="数据库主机"
-                      className="w-full h-10 px-3 text-sm border border-neutral-200 rounded-lg focus:border-neutral-400 focus:ring-2 focus:ring-neutral-100 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1.5">端口</label>
-                    <input
-                      type="number"
-                      value={dbPort}
-                      onChange={(e) => setDbPort(e.target.value)}
-                      placeholder="5432"
-                      className="w-full h-10 px-3 text-sm border border-neutral-200 rounded-lg focus:border-neutral-400 focus:ring-2 focus:ring-neutral-100 outline-none"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1.5">数据库名称</label>
-                  <input
-                    type="text"
-                    value={dbName}
-                    onChange={(e) => setDbName(e.target.value)}
-                    placeholder="nginxops"
-                    className="w-full h-10 px-3 text-sm border border-neutral-200 rounded-lg focus:border-neutral-400 focus:ring-2 focus:ring-neutral-100 outline-none"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1.5">用户名</label>
-                    <input
-                      type="text"
-                      value={dbUser}
-                      onChange={(e) => setDbUser(e.target.value)}
-                      placeholder="用户名"
-                      className="w-full h-10 px-3 text-sm border border-neutral-200 rounded-lg focus:border-neutral-400 focus:ring-2 focus:ring-neutral-100 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1.5">密码</label>
-                    <input
-                      type="password"
-                      value={dbPassword}
-                      onChange={(e) => setDbPassword(e.target.value)}
-                      placeholder="密码"
-                      className="w-full h-10 px-3 text-sm border border-neutral-200 rounded-lg focus:border-neutral-400 focus:ring-2 focus:ring-neutral-100 outline-none"
-                    />
-                  </div>
-                </div>
-                
-                <button
-                  onClick={testDBConnection}
-                  disabled={testingDB}
-                  className="flex items-center justify-center gap-2 w-full h-10 text-sm font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors disabled:opacity-60"
-                >
-                  {testingDB ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plug className="w-4 h-4" />}
-                  {testingDB ? '测试中...' : '测试连接'}
-                </button>
-                
-                {dbTestResult && (
-                  <div className={`p-3 rounded-lg text-sm flex items-center gap-2 ${
-                    dbTestResult.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
-                  }`}>
-                    {dbTestResult.success ? <Check className="w-4 h-4" /> : <span className="text-base">×</span>}
-                    {dbTestResult.message}
-                  </div>
-                )}
-              </>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1.5">端口</label>
+                <input
+                  type="number"
+                  value={dbPort}
+                  onChange={(e) => setDbPort(e.target.value)}
+                  placeholder="5432"
+                  className="w-full h-10 px-3 text-sm border border-neutral-200 rounded-lg focus:border-neutral-400 focus:ring-2 focus:ring-neutral-100 outline-none"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-1.5">数据库名称</label>
+              <input
+                type="text"
+                value={dbName}
+                onChange={(e) => setDbName(e.target.value)}
+                placeholder="nginxops"
+                className="w-full h-10 px-3 text-sm border border-neutral-200 rounded-lg focus:border-neutral-400 focus:ring-2 focus:ring-neutral-100 outline-none"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1.5">用户名</label>
+                <input
+                  type="text"
+                  value={dbUser}
+                  onChange={(e) => setDbUser(e.target.value)}
+                  placeholder="用户名"
+                  className="w-full h-10 px-3 text-sm border border-neutral-200 rounded-lg focus:border-neutral-400 focus:ring-2 focus:ring-neutral-100 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1.5">密码</label>
+                <input
+                  type="password"
+                  value={dbPassword}
+                  onChange={(e) => setDbPassword(e.target.value)}
+                  placeholder="密码"
+                  className="w-full h-10 px-3 text-sm border border-neutral-200 rounded-lg focus:border-neutral-400 focus:ring-2 focus:ring-neutral-100 outline-none"
+                />
+              </div>
+            </div>
+            
+            <button
+              onClick={testDBConnection}
+              disabled={testingDB}
+              className="flex items-center justify-center gap-2 w-full h-10 text-sm font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors disabled:opacity-60"
+            >
+              {testingDB ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plug className="w-4 h-4" />}
+              {testingDB ? '测试中...' : '测试连接'}
+            </button>
+            
+            {dbTestResult && (
+              <div className={`p-3 rounded-lg text-sm flex items-center gap-2 ${
+                dbTestResult.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
+              }`}>
+                {dbTestResult.success ? <Check className="w-4 h-4" /> : <span className="text-base">×</span>}
+                {dbTestResult.message}
+              </div>
             )}
           </div>
         )
@@ -520,27 +437,13 @@ export default function Welcome() {
 
   const CurrentIcon = stepConfig[currentStepIndex]?.icon || Database
 
-  // 计算实际步骤（隐藏不需要显示的步骤）
-  const getDisplaySteps = () => {
-    if (!useExternalDB) {
-      return stepConfig.filter(s => s.key !== 'dbConfig')
-    }
-    return stepConfig
-  }
-  
-  const displaySteps = getDisplaySteps()
-  const displayStepIndex = displaySteps.findIndex(s => s.key === currentStep)
-  const displayProgress = ((displayStepIndex) / (displaySteps.length - 1)) * 100
-
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col items-center justify-center px-4 py-8">
-      {/* Logo */}
       <div className="flex items-center gap-3.5 mb-10">
         <img src="/favicon.svg" alt="NginxOps" className="w-14 h-14" />
         <span className="text-neutral-900 font-bold text-3xl tracking-tight">NginxOps</span>
       </div>
 
-      {/* 主卡片 */}
       <div 
         className="w-full bg-white rounded-3xl shadow-lg border border-neutral-200 overflow-hidden flex flex-col"
         style={{ 
@@ -549,7 +452,6 @@ export default function Welcome() {
           maxHeight: '80vh'
         }}
       >
-        {/* 卡片头部 */}
         {currentStep !== 'complete' && (
           <div className="pt-6 pb-4 px-8 text-center shrink-0">
             <div className="w-12 h-12 rounded-xl bg-neutral-100 flex items-center justify-center mx-auto mb-3">
@@ -564,7 +466,6 @@ export default function Welcome() {
           </div>
         )}
 
-        {/* 卡片内容 */}
         <div className={`flex-1 px-8 overflow-auto transition-all duration-300 ease-out ${
           animating 
             ? direction === 'right' 
@@ -575,17 +476,15 @@ export default function Welcome() {
           {renderStepContent()}
         </div>
 
-        {/* 进度条 */}
         {currentStep !== 'complete' && (
           <div className="px-8 py-3 shrink-0">
-            <Progress value={displayProgress} className="h-1" />
+            <Progress value={progressValue} className="h-1" />
           </div>
         )}
 
-        {/* 底部按钮 */}
         {currentStep !== 'complete' && (
           <div className="px-8 pb-6 flex gap-3 shrink-0">
-            {!(currentStep === 'dbType') && (
+            {!(currentStep === 'dbConfig') && (
               <button
                 onClick={handlePrev}
                 disabled={animating}
@@ -618,7 +517,6 @@ export default function Welcome() {
         )}
       </div>
 
-      {/* 底部提示 */}
       <p className="mt-6 text-xs text-neutral-400">
         © 2024 NginxOps. All rights reserved.
       </p>
