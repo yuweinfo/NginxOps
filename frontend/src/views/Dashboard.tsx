@@ -67,6 +67,8 @@ function RankingCard({ title, icon, data, colors }: RankingCardProps) {
   const bg = colors.background || '#fafafa'
   const muted = colors.muted || '#e5e5e5'
 
+  const displayData = data.slice(0, 10)
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -76,8 +78,8 @@ function RankingCard({ title, icon, data, colors }: RankingCardProps) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-2">
-          {data.map((item, index) => (
+        <div className="space-y-2 max-h-[320px] overflow-y-auto custom-scrollbar">
+          {displayData.map((item, index) => (
             <div key={index} className="flex items-center gap-2 text-xs">
               <span
                 className={cn(
@@ -139,17 +141,8 @@ export default function Dashboard() {
   }, [darkMode])
 
   useEffect(() => {
-    fetch('https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json')
-      .then((r) => r.json())
-      .then((chinaMap) => {
-        echarts.registerMap('world', worldMapGeojson)
-        echarts.registerMap('china', chinaMap)
-        setMapReady(true)
-      })
-      .catch(() => {
-        echarts.registerMap('world', worldMapGeojson)
-        setMapReady(true)
-      })
+    echarts.registerMap('world', worldMapGeojson)
+    setMapReady(true)
   }, [])
 
   useEffect(() => {
@@ -586,46 +579,6 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* IP Access Top 10 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-medium">IP 访问排行 (Top 10)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {(data?.ipTopRank || []).map((item, index) => (
-              <div
-                key={index}
-                className="flex items-center gap-3 text-sm p-2 rounded-lg hover:bg-muted/50 transition-colors"
-              >
-                <span
-                  className={cn(
-                    'w-6 h-6 flex items-center justify-center rounded text-xs font-bold',
-                    index === 0
-                      ? 'bg-yellow-500 text-white'
-                      : index === 1
-                        ? 'bg-gray-400 text-white'
-                        : index === 2
-                          ? 'bg-amber-600 text-white'
-                          : 'bg-muted text-muted-foreground'
-                  )}
-                >
-                  {index + 1}
-                </span>
-                <span className="font-mono text-xs flex-shrink-0 w-32">{item.ip}</span>
-                <span className="text-muted-foreground text-xs">({item.region || 'Unknown'})</span>
-                <div className="flex-1" />
-                <span className="font-medium tabular-nums">{item.requests.toLocaleString()}</span>
-                <span className="text-muted-foreground text-xs">次</span>
-              </div>
-            ))}
-            {(!data?.ipTopRank || data.ipTopRank.length === 0) && (
-              <div className="text-center text-muted-foreground py-8">暂无访问数据</div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Rankings Grid */}
       <div className="grid gap-6 md:grid-cols-2">
         <RankingCard
@@ -634,6 +587,44 @@ export default function Dashboard() {
           data={data?.hostRank || []}
           colors={colors}
         />
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-medium">IP 访问排行</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-[320px] overflow-y-auto custom-scrollbar">
+              {(data?.ipTopRank || []).slice(0, 10).map((item, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-3 text-sm p-2 rounded-lg hover:bg-muted/50 transition-colors"
+                >
+                  <span
+                    className={cn(
+                      'w-6 h-6 flex items-center justify-center rounded text-xs font-bold',
+                      index === 0
+                        ? 'bg-yellow-500 text-white'
+                        : index === 1
+                          ? 'bg-gray-400 text-white'
+                          : index === 2
+                            ? 'bg-amber-600 text-white'
+                            : 'bg-muted text-muted-foreground'
+                    )}
+                  >
+                    {index + 1}
+                  </span>
+                  <span className="font-mono text-xs flex-shrink-0 w-32">{item.ip}</span>
+                  <span className="text-muted-foreground text-xs">({item.region || 'Unknown'})</span>
+                  <div className="flex-1" />
+                  <span className="font-medium tabular-nums">{item.requests.toLocaleString()}</span>
+                  <span className="text-muted-foreground text-xs">次</span>
+                </div>
+              ))}
+              {(!data?.ipTopRank || data.ipTopRank.length === 0) && (
+                <div className="text-center text-muted-foreground py-8">暂无访问数据</div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
         <RankingCard
           title="Referer 排行"
           icon={<Link className="h-4 w-4" />}
