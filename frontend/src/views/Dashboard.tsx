@@ -17,6 +17,7 @@ import {
   Smartphone,
   Laptop,
   Terminal,
+  Network,
 } from 'lucide-react'
 import ReactECharts from 'echarts-for-react'
 import * as echarts from 'echarts'
@@ -332,15 +333,32 @@ export default function Dashboard() {
     }
   }, [data?.statusDistribution, colors])
 
+  const ipTopRankConverted = useMemo(() => {
+    const total = (data?.ipTopRank || []).reduce((sum, item) => sum + item.requests, 0)
+    return (data?.ipTopRank || []).map((item) => ({
+      name: `${item.ip}${item.region && item.region !== 'Unknown' ? ` (${item.region})` : ''}`,
+      count: item.requests,
+      percent: total > 0 ? (item.requests / total) * 100 : 0,
+    }))
+  }, [data?.ipTopRank])
+
   const mapChartOption = useMemo(() => {
     const ipLocations = data?.ipLocations || []
     const fg = colors.foreground || '#0a0a0a'
     const border = colors.border || '#e5e5e5'
     const accent = colors.accent || '#f5f5f5'
     const muted = colors.muted || '#e5e5e5'
-    const destructive = colors.destructive || '#ef4444'
 
-    const heatData = ipLocations.map((loc) => [loc.value[0], loc.value[1], loc.value[2]])
+    const mapData = ipLocations.map((loc) => ({
+      name: loc.name,
+      value: loc.value[2] || 0,
+    }))
+
+    const maxValue = Math.max(...mapData.map((d) => d.value), 1000)
+
+    const mapColors = darkMode
+      ? [colors.border || '#262626', colors.mutedForeground || '#a3a3a3', colors.foreground || '#e5e5e5']
+      : [colors.muted || '#f5f5f5', colors.mutedForeground || '#a3a3a3', colors.foreground || '#171717']
 
     return {
       tooltip: {
@@ -351,8 +369,8 @@ export default function Dashboard() {
         borderRadius: 8,
         textStyle: { color: fg, fontSize: 13 },
         formatter: (params: any) => {
-          if (params.seriesType === 'scatter' || params.seriesType === 'effectScatter') {
-            return `${params.name}<br/>访问量: ${params.value[2]}`
+          if (params.value != null) {
+            return `${params.name}<br/>访问量: ${Number(params.value).toLocaleString()}`
           }
           return params.name
         },
@@ -360,82 +378,246 @@ export default function Dashboard() {
       visualMap: {
         show: true,
         min: 0,
-        max: Math.max(...ipLocations.map((d) => d.value[2]), 1000),
+        max: maxValue,
         calculable: true,
         inRange: {
-          color: ['#e5e5e5', '#888888', '#333333', '#000000'],
+          color: mapColors,
         },
         text: ['高', '低'],
         textStyle: { color: fg },
         bottom: 20,
         left: 20,
       },
-      geo: {
-        map: 'world',
-        roam: true,
-        zoom: 1.2,
-        center: [30, 30],
-        scaleLimit: { min: 1, max: 20 },
-        nameMap: {
-          China: '中国',
-          'United States': '美国',
-          Japan: '日本',
-          Singapore: '新加坡',
-          Germany: '德国',
-          'United Kingdom': '英国',
-          Australia: '澳大利亚',
-          France: '法国',
-          Russia: '俄罗斯',
-          India: '印度',
-        },
-        itemStyle: {
-          areaColor: muted,
-          borderColor: border,
-          borderWidth: 0.5,
-        },
-        emphasis: {
-          itemStyle: {
-            areaColor: accent,
-          },
-        },
-      },
       series: [
         {
-          name: '访问热力',
-          type: 'heatmap',
-          coordinateSystem: 'geo',
-          data: heatData,
-          pointSize: 20,
-          blurSize: 12,
-        },
-        {
-          name: '活跃区域',
-          type: 'effectScatter',
-          coordinateSystem: 'geo',
-          data: ipLocations.slice(0, 5),
-          symbolSize: (val: number[]) => Math.max(Math.sqrt(val[2]) / 6, 10),
-          showEffectOn: 'render',
-          rippleEffect: {
-            brushType: 'stroke',
-            scale: 4,
-            period: 3,
-          },
-          itemStyle: {
-            color: destructive,
-            shadowBlur: 15,
-            shadowColor: `${destructive}66`,
+          name: '访客分布',
+          type: 'map',
+          map: 'world',
+          roam: true,
+          zoom: 1.2,
+          center: [30, 30],
+          scaleLimit: { min: 1, max: 20 },
+          nameMap: {
+            China: '中国',
+            'United States': '美国',
+            Japan: '日本',
+            Singapore: '新加坡',
+            Germany: '德国',
+            'United Kingdom': '英国',
+            Australia: '澳大利亚',
+            France: '法国',
+            Russia: '俄罗斯',
+            India: '印度',
+            Canada: '加拿大',
+            Brazil: '巴西',
+            'South Korea': '韩国',
+            Indonesia: '印度尼西亚',
+            Vietnam: '越南',
+            Thailand: '泰国',
+            Philippines: '菲律宾',
+            Malaysia: '马来西亚',
+            Mexico: '墨西哥',
+            Turkey: '土耳其',
+            Italy: '意大利',
+            Spain: '西班牙',
+            Netherlands: '荷兰',
+            Poland: '波兰',
+            Sweden: '瑞典',
+            Switzerland: '瑞士',
+            Belgium: '比利时',
+            Austria: '奥地利',
+            Portugal: '葡萄牙',
+            'Czech Republic': '捷克',
+            Greece: '希腊',
+            Ukraine: '乌克兰',
+            Romania: '罗马尼亚',
+            Hungary: '匈牙利',
+            Israel: '以色列',
+            'United Arab Emirates': '阿联酋',
+            'New Zealand': '新西兰',
+            Ireland: '爱尔兰',
+            Denmark: '丹麦',
+            Norway: '挪威',
+            Finland: '芬兰',
+            Kazakhstan: '哈萨克斯坦',
+            Pakistan: '巴基斯坦',
+            Bangladesh: '孟加拉国',
+            Egypt: '埃及',
+            'South Africa': '南非',
+            Nigeria: '尼日利亚',
+            Kenya: '肯尼亚',
+            Argentina: '阿根廷',
+            Chile: '智利',
+            Colombia: '哥伦比亚',
+            Peru: '秘鲁',
+            Venezuela: '委内瑞拉',
+            Ecuador: '厄瓜多尔',
+            Uruguay: '乌拉圭',
+            Paraguay: '巴拉圭',
+            Bolivia: '玻利维亚',
+            'Saudi Arabia': '沙特阿拉伯',
+            Iran: '伊朗',
+            Iraq: '伊拉克',
+            Syria: '叙利亚',
+            Jordan: '约旦',
+            Lebanon: '黎巴嫩',
+            Kuwait: '科威特',
+            Qatar: '卡塔尔',
+            Bahrain: '巴林',
+            Oman: '阿曼',
+            Yemen: '也门',
+            Azerbaijan: '阿塞拜疆',
+            Armenia: '亚美尼亚',
+            Georgia: '格鲁吉亚',
+            Mongolia: '蒙古',
+            'North Korea': '朝鲜',
+            Nepal: '尼泊尔',
+            'Sri Lanka': '斯里兰卡',
+            Myanmar: '缅甸',
+            Cambodia: '柬埔寨',
+            Laos: '老挝',
+            Brunei: '文莱',
+            'Timor-Leste': '东帝汶',
+            Maldives: '马尔代夫',
+            Bhutan: '不丹',
+            Iceland: '冰岛',
+            Luxembourg: '卢森堡',
+            Malta: '马耳他',
+            Cyprus: '塞浦路斯',
+            Estonia: '爱沙尼亚',
+            Latvia: '拉脱维亚',
+            Lithuania: '立陶宛',
+            Slovenia: '斯洛文尼亚',
+            Croatia: '克罗地亚',
+            'Bosnia and Herzegovina': '波黑',
+            Serbia: '塞尔维亚',
+            Montenegro: '黑山',
+            'North Macedonia': '北马其顿',
+            Albania: '阿尔巴尼亚',
+            Bulgaria: '保加利亚',
+            Slovakia: '斯洛伐克',
+            Belarus: '白俄罗斯',
+            Moldova: '摩尔多瓦',
+            Tajikistan: '塔吉克斯坦',
+            Turkmenistan: '土库曼斯坦',
+            Uzbekistan: '乌兹别克斯坦',
+            Kyrgyzstan: '吉尔吉斯斯坦',
+            Afghanistan: '阿富汗',
+            Morocco: '摩洛哥',
+            Algeria: '阿尔及利亚',
+            Tunisia: '突尼斯',
+            Libya: '利比亚',
+            Sudan: '苏丹',
+            Ethiopia: '埃塞俄比亚',
+            Somalia: '索马里',
+            Tanzania: '坦桑尼亚',
+            Uganda: '乌干达',
+            Rwanda: '卢旺达',
+            Burundi: '布隆迪',
+            Zambia: '赞比亚',
+            Zimbabwe: '津巴布韦',
+            Botswana: '博茨瓦纳',
+            Namibia: '纳米比亚',
+            Angola: '安哥拉',
+            Mozambique: '莫桑比克',
+            Madagascar: '马达加斯加',
+            Mauritius: '毛里求斯',
+            Seychelles: '塞舌尔',
+            Comoros: '科摩罗',
+            'Cape Verde': '佛得角',
+            'Sao Tome and Principe': '圣多美和普林西比',
+            Gabon: '加蓬',
+            'Equatorial Guinea': '赤道几内亚',
+            Cameroon: '喀麦隆',
+            'Central African Republic': '中非',
+            Chad: '乍得',
+            Congo: '刚果（布）',
+            'Democratic Republic of the Congo': '刚果（金）',
+            'Republic of the Congo': '刚果（布）',
+            Djibouti: '吉布提',
+            Eritrea: '厄立特里亚',
+            'The Gambia': '冈比亚',
+            Ghana: '加纳',
+            Guinea: '几内亚',
+            'Guinea-Bissau': '几内亚比绍',
+            'Ivory Coast': '科特迪瓦',
+            Liberia: '利比里亚',
+            Mali: '马里',
+            Mauritania: '毛里塔尼亚',
+            Niger: '尼日尔',
+            Senegal: '塞内加尔',
+            'Sierra Leone': '塞拉利昂',
+            Togo: '多哥',
+            'Burkina Faso': '布基纳法索',
+            Benin: '贝宁',
+            Lesotho: '莱索托',
+            Eswatini: '斯威士兰',
+            Malawi: '马拉维',
+            'Western Sahara': '西撒哈拉',
+            'South Sudan': '南苏丹',
+            'Papua New Guinea': '巴布亚新几内亚',
+            Fiji: '斐济',
+            'Solomon Islands': '所罗门群岛',
+            Vanuatu: '瓦努阿图',
+            Samoa: '萨摩亚',
+            Tonga: '汤加',
+            Kiribati: '基里巴斯',
+            Palau: '帕劳',
+            Nauru: '瑙鲁',
+            Tuvalu: '图瓦卢',
+            'Marshall Islands': '马绍尔群岛',
+            Micronesia: '密克罗尼西亚',
+            Cuba: '古巴',
+            'Dominican Republic': '多米尼加',
+            Haiti: '海地',
+            Jamaica: '牙买加',
+            'Trinidad and Tobago': '特立尼达和多巴哥',
+            Barbados: '巴巴多斯',
+            'Saint Lucia': '圣卢西亚',
+            Grenada: '格林纳达',
+            'Saint Vincent and the Grenadines': '圣文森特和格林纳丁斯',
+            'Antigua and Barbuda': '安提瓜和巴布达',
+            Dominica: '多米尼克',
+            'Saint Kitts and Nevis': '圣基茨和尼维斯',
+            Bahamas: '巴哈马',
+            Belize: '伯利兹',
+            'Costa Rica': '哥斯达黎加',
+            'El Salvador': '萨尔瓦多',
+            Guatemala: '危地马拉',
+            Honduras: '洪都拉斯',
+            Nicaragua: '尼加拉瓜',
+            Panama: '巴拿马',
+            Guyana: '圭亚那',
+            Suriname: '苏里南',
+            'French Guiana': '法属圭亚那',
+            Greenland: '格陵兰',
           },
           label: {
-            show: true,
-            position: 'right',
-            formatter: '{b}',
-            color: fg,
-            fontSize: 10,
+            show: false,
           },
+          itemStyle: {
+            areaColor: muted,
+            borderColor: border,
+            borderWidth: 0.5,
+          },
+          emphasis: {
+            label: { show: true, color: fg, fontSize: 11 },
+            itemStyle: {
+              areaColor: accent,
+              shadowBlur: 10,
+              shadowColor: 'rgba(0, 0, 0, 0.2)',
+            },
+          },
+          select: {
+            itemStyle: {
+              areaColor: accent,
+            },
+          },
+          data: mapData,
         },
       ],
     }
-  }, [data?.ipLocations, colors])
+  }, [data?.ipLocations, colors, darkMode])
 
   const statsCards = [
     { title: '当前 QPS', value: data?.qps || 0, suffix: 'req/s', icon: Activity },
@@ -587,44 +769,12 @@ export default function Dashboard() {
           data={data?.hostRank || []}
           colors={colors}
         />
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-medium">IP 访问排行</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-[320px] overflow-y-auto custom-scrollbar">
-              {(data?.ipTopRank || []).slice(0, 10).map((item, index) => (
-                <div
-                  key={index}
-                  className="flex items-center gap-3 text-sm p-2 rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <span
-                    className={cn(
-                      'w-6 h-6 flex items-center justify-center rounded text-xs font-bold',
-                      index === 0
-                        ? 'bg-yellow-500 text-white'
-                        : index === 1
-                          ? 'bg-gray-400 text-white'
-                          : index === 2
-                            ? 'bg-amber-600 text-white'
-                            : 'bg-muted text-muted-foreground'
-                    )}
-                  >
-                    {index + 1}
-                  </span>
-                  <span className="font-mono text-xs flex-shrink-0 w-32">{item.ip}</span>
-                  <span className="text-muted-foreground text-xs">({item.region || 'Unknown'})</span>
-                  <div className="flex-1" />
-                  <span className="font-medium tabular-nums">{item.requests.toLocaleString()}</span>
-                  <span className="text-muted-foreground text-xs">次</span>
-                </div>
-              ))}
-              {(!data?.ipTopRank || data.ipTopRank.length === 0) && (
-                <div className="text-center text-muted-foreground py-8">暂无访问数据</div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <RankingCard
+          title="IP 访问排行"
+          icon={<Network className="h-4 w-4" />}
+          data={ipTopRankConverted}
+          colors={colors}
+        />
         <RankingCard
           title="Referer 排行"
           icon={<Link className="h-4 w-4" />}
