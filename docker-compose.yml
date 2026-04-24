@@ -20,7 +20,7 @@ services:
 
   nginxops:
     build: .
-    image: nginxops:latest
+    image: docker.cnb.cool/yuweinfo/nginxops:latest
     container_name: nginxops
     restart: unless-stopped
     depends_on:
