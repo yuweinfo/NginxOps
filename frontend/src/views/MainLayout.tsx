@@ -186,13 +186,20 @@ export default function MainLayout({ dark, toggleTheme }: MainLayoutProps) {
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="h-14 flex items-center px-8">
+        <header className="h-14 flex items-center justify-between px-8">
           {currentMenu && (
             <div className="flex items-center gap-3">
               <currentMenu.icon className="h-5 w-5 text-muted-foreground" />
               <h1 className="text-lg font-semibold">{currentMenu.label}</h1>
             </div>
           )}
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+            title={dark ? '切换到浅色模式' : '切换到深色模式'}
+          >
+            {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </button>
         </header>
         {/* Content */}
         <main className="flex-1 overflow-auto p-8">
