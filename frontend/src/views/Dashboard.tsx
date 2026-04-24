@@ -6,8 +6,6 @@ import {
   Server,
   Loader2,
   AlertCircle,
-  Moon,
-  Sun,
   Globe,
   Link,
   FileText,
@@ -22,7 +20,6 @@ import {
 import ReactECharts from 'echarts-for-react'
 import * as echarts from 'echarts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Switch } from '@/components/ui/switch'
 import { statsApi, DashboardData } from '@/api/stats'
 import { useThemeColors } from '@/hooks/useThemeColor'
 import { cn } from '@/lib/utils'
@@ -133,13 +130,14 @@ export default function Dashboard() {
   const chartRef = useRef<any>(null)
   const colors = useThemeColors()
 
+  // Sync darkMode state with document class
   useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
-  }, [darkMode])
+    const observer = new MutationObserver(() => {
+      setDarkMode(document.documentElement.classList.contains('dark'))
+    })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     echarts.registerMap('world', worldMapGeojson)
@@ -662,15 +660,8 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header with Dark Mode Toggle */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">仪表盘</h2>
-        <div className="flex items-center gap-2">
-          <Sun className="h-4 w-4 text-muted-foreground" />
-          <Switch checked={darkMode} onCheckedChange={setDarkMode} />
-          <Moon className="h-4 w-4 text-muted-foreground" />
-        </div>
-      </div>
+      {/* Header */}
+      <h2 className="text-lg font-semibold">仪表盘</h2>
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

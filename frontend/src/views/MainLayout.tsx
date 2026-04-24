@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Switch } from '@/components/ui/switch'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -193,13 +194,11 @@ export default function MainLayout({ dark, toggleTheme }: MainLayoutProps) {
               <h1 className="text-lg font-semibold">{currentMenu.label}</h1>
             </div>
           )}
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
-            title={dark ? '切换到浅色模式' : '切换到深色模式'}
-          >
-            {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-          </button>
+          <div className="flex items-center gap-2">
+            <Sun className="h-4 w-4 text-muted-foreground" />
+            <Switch checked={dark} onCheckedChange={toggleTheme} />
+            <Moon className="h-4 w-4 text-muted-foreground" />
+          </div>
         </header>
         {/* Content */}
         <main className="flex-1 overflow-auto p-8">
