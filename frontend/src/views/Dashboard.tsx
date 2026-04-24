@@ -1,22 +1,33 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { 
-  Activity, 
-  BarChart3, 
-  Users, 
+import {
+  Activity,
+  BarChart3,
+  Users,
   Server,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Moon,
+  Sun,
+  Globe,
+  Link,
+  FileText,
+  FileType,
+  CheckCircle,
+  Monitor,
+  Smartphone,
+  Laptop,
+  Terminal,
 } from 'lucide-react'
 import ReactECharts from 'echarts-for-react'
 import * as echarts from 'echarts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Switch } from '@/components/ui/switch'
 import { statsApi, DashboardData } from '@/api/stats'
 import { useThemeColors } from '@/hooks/useThemeColor'
 import { cn } from '@/lib/utils'
 // @ts-ignore
 import worldMapGeojson from 'world-map-geojson'
 
-// 默认空数据
 const emptyData: DashboardData = {
   qps: 0,
   bandwidth: 0,
@@ -27,6 +38,82 @@ const emptyData: DashboardData = {
   ipLocations: [],
   ipRegionRank: [],
   ipTopRank: [],
+  hostRank: [],
+  refererRank: [],
+  pathRank: [],
+  resourceTypeRank: [],
+  statusRank: [],
+  browserRank: [],
+  deviceTypeRank: [],
+  osRank: [],
+  userAgentRank: [],
+}
+
+interface RankingItem {
+  name: string
+  count: number
+  percent: number
+}
+
+interface RankingCardProps {
+  title: string
+  icon: React.ReactNode
+  data: RankingItem[]
+  colors: ReturnType<typeof useThemeColors>
+}
+
+function RankingCard({ title, icon, data, colors }: RankingCardProps) {
+  const fg = colors.foreground || '#0a0a0a'
+  const bg = colors.background || '#fafafa'
+  const muted = colors.muted || '#e5e5e5'
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium flex items-center gap-2">
+          {icon}
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          {data.map((item, index) => (
+            <div key={index} className="flex items-center gap-2 text-xs">
+              <span
+                className={cn(
+                  'w-4 h-4 flex items-center justify-center rounded text-[10px] font-medium flex-shrink-0',
+                  index < 3 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                )}
+              >
+                {index + 1}
+              </span>
+              <span className="flex-1 truncate text-muted-foreground" title={item.name}>
+                {item.name}
+              </span>
+              <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden flex-shrink-0">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${Math.min(item.percent, 100)}%`,
+                    backgroundColor: index === 0 ? fg : muted,
+                  }}
+                />
+              </div>
+              <span className="text-muted-foreground w-14 text-right flex-shrink-0">
+                {item.count.toLocaleString()}
+              </span>
+              <span className="text-muted-foreground w-10 text-right flex-shrink-0">
+                {item.percent.toFixed(1)}%
+              </span>
+            </div>
+          ))}
+          {data.length === 0 && (
+            <div className="text-center text-muted-foreground py-4 text-xs">暂无数据</div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
 }
 
 export default function Dashboard() {
@@ -34,14 +121,27 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<DashboardData>(emptyData)
   const [mapReady, setMapReady] = useState(false)
-  const [isChinaMap, setIsChinaMap] = useState(false)
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof document !== 'undefined') {
+      return document.documentElement.classList.contains('dark')
+    }
+    return false
+  })
   const chartRef = useRef<any>(null)
   const colors = useThemeColors()
 
   useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+  }, [darkMode])
+
+  useEffect(() => {
     fetch('https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json')
-      .then(r => r.json())
-      .then(chinaMap => {
+      .then((r) => r.json())
+      .then((chinaMap) => {
         echarts.registerMap('world', worldMapGeojson)
         echarts.registerMap('china', chinaMap)
         setMapReady(true)
@@ -69,6 +169,15 @@ export default function Dashboard() {
             ipLocations: res.data.ipLocations || [],
             ipRegionRank: res.data.ipRegionRank || [],
             ipTopRank: res.data.ipTopRank || [],
+            hostRank: res.data.hostRank || [],
+            refererRank: res.data.refererRank || [],
+            pathRank: res.data.pathRank || [],
+            resourceTypeRank: res.data.resourceTypeRank || [],
+            statusRank: res.data.statusRank || [],
+            browserRank: res.data.browserRank || [],
+            deviceTypeRank: res.data.deviceTypeRank || [],
+            osRank: res.data.osRank || [],
+            userAgentRank: res.data.userAgentRank || [],
           })
         } else {
           setError(res.message || '获取数据失败')
@@ -88,7 +197,7 @@ export default function Dashboard() {
       try {
         const res = await statsApi.getDashboard()
         if (res.success) {
-          setData(prev => ({
+          setData((prev) => ({
             ...prev,
             qps: res.data.qps || 0,
             bandwidth: res.data.bandwidth || 0,
@@ -160,7 +269,7 @@ export default function Dashboard() {
     const bg = colors.background || '#fafafa'
     const muted = colors.mutedForeground || '#737373'
     const destructive = colors.destructive || '#ef4444'
-    
+
     return {
       tooltip: {
         trigger: 'item',
@@ -204,36 +313,31 @@ export default function Dashboard() {
             lineStyle: { color: colors.border || '#e5e5e5' },
           },
           data: [
-            { 
-              value: status['2xx'], 
-              name: '2xx', 
-              itemStyle: { color: fg } 
+            {
+              value: status['2xx'],
+              name: '2xx',
+              itemStyle: { color: fg },
             },
-            { 
-              value: status['4xx'], 
-              name: '4xx', 
-              itemStyle: { color: destructive } 
+            {
+              value: status['3xx'] || 0,
+              name: '3xx',
+              itemStyle: { color: muted },
             },
-            { 
-              value: status['5xx'], 
-              name: '5xx', 
-              itemStyle: { color: destructive, opacity: 0.6 } 
+            {
+              value: status['4xx'],
+              name: '4xx',
+              itemStyle: { color: destructive },
+            },
+            {
+              value: status['5xx'],
+              name: '5xx',
+              itemStyle: { color: destructive, opacity: 0.6 },
             },
           ],
         },
       ],
     }
   }, [data?.statusDistribution, colors])
-
-  const handleMapClick = (params: any) => {
-    if (!isChinaMap && (params.name === 'China')) {
-      setIsChinaMap(true)
-    }
-  }
-
-  const handleBackToWorld = () => {
-    setIsChinaMap(false)
-  }
 
   const mapChartOption = useMemo(() => {
     const ipLocations = data?.ipLocations || []
@@ -243,97 +347,7 @@ export default function Dashboard() {
     const muted = colors.muted || '#e5e5e5'
     const destructive = colors.destructive || '#ef4444'
 
-    // 热力图数据转换
-    const heatData = ipLocations.map(loc => [loc.value[0], loc.value[1], loc.value[2]])
-
-    if (isChinaMap) {
-      const chinaData = ipLocations.filter(loc => loc.country === 'China')
-      const chinaHeatData = chinaData.map(loc => [loc.value[0], loc.value[1], loc.value[2]])
-
-      return {
-        tooltip: {
-          trigger: 'item',
-          backgroundColor: colors.card || '#fff',
-          borderColor: border,
-          borderWidth: 1,
-          borderRadius: 8,
-          textStyle: { color: fg, fontSize: 13 },
-          formatter: (params: any) => {
-            if (params.seriesType === 'scatter' || params.seriesType === 'effectScatter') {
-              return `${params.name}<br/>访问量: ${params.value[2]}`
-            }
-            return params.name
-          },
-        },
-        visualMap: {
-          show: true,
-          min: 0,
-          max: Math.max(...chinaData.map(d => d.value[2]), 1000),
-          calculable: true,
-          inRange: {
-            color: ['#e5e5e5', '#888888', '#333333', '#000000']
-          },
-          text: ['高', '低'],
-          textStyle: { color: fg },
-          bottom: 20,
-          left: 20,
-        },
-        geo: {
-          map: 'china',
-          roam: true,
-          zoom: 1.2,
-          center: [105, 36],
-          scaleLimit: { min: 1, max: 10 },
-          itemStyle: {
-            areaColor: muted,
-            borderColor: border,
-            borderWidth: 0.5,
-          },
-          emphasis: {
-            itemStyle: {
-              areaColor: accent,
-            },
-          },
-        },
-        series: [
-          // 热力图层
-          {
-            name: '访问热力',
-            type: 'heatmap',
-            coordinateSystem: 'geo',
-            data: chinaHeatData,
-            pointSize: 25,
-            blurSize: 15,
-          },
-          // 动态热点标记
-          {
-            name: '活跃区域',
-            type: 'effectScatter',
-            coordinateSystem: 'geo',
-            data: chinaData.slice(0, 3),
-            symbolSize: (val: number[]) => Math.max(Math.sqrt(val[2]) / 5, 12),
-            showEffectOn: 'render',
-            rippleEffect: {
-              brushType: 'stroke',
-              scale: 4,
-              period: 3,
-            },
-            itemStyle: {
-              color: destructive,
-              shadowBlur: 15,
-              shadowColor: `${destructive}66`,
-            },
-            label: {
-              show: true,
-              position: 'right',
-              formatter: '{b}',
-              color: fg,
-              fontSize: 11,
-            },
-          },
-        ],
-      }
-    }
+    const heatData = ipLocations.map((loc) => [loc.value[0], loc.value[1], loc.value[2]])
 
     return {
       tooltip: {
@@ -353,10 +367,10 @@ export default function Dashboard() {
       visualMap: {
         show: true,
         min: 0,
-        max: Math.max(...ipLocations.map(d => d.value[2]), 1000),
+        max: Math.max(...ipLocations.map((d) => d.value[2]), 1000),
         calculable: true,
         inRange: {
-          color: ['#e5e5e5', '#888888', '#333333', '#000000']
+          color: ['#e5e5e5', '#888888', '#333333', '#000000'],
         },
         text: ['高', '低'],
         textStyle: { color: fg },
@@ -370,16 +384,16 @@ export default function Dashboard() {
         center: [30, 30],
         scaleLimit: { min: 1, max: 20 },
         nameMap: {
-          'China': '中国',
+          China: '中国',
           'United States': '美国',
-          'Japan': '日本',
-          'Singapore': '新加坡',
-          'Germany': '德国',
+          Japan: '日本',
+          Singapore: '新加坡',
+          Germany: '德国',
           'United Kingdom': '英国',
-          'Australia': '澳大利亚',
-          'France': '法国',
-          'Russia': '俄罗斯',
-          'India': '印度',
+          Australia: '澳大利亚',
+          France: '法国',
+          Russia: '俄罗斯',
+          India: '印度',
         },
         itemStyle: {
           areaColor: muted,
@@ -393,7 +407,6 @@ export default function Dashboard() {
         },
       },
       series: [
-        // 热力图层
         {
           name: '访问热力',
           type: 'heatmap',
@@ -402,7 +415,6 @@ export default function Dashboard() {
           pointSize: 20,
           blurSize: 12,
         },
-        // 动态热点标记（Top 5）
         {
           name: '活跃区域',
           type: 'effectScatter',
@@ -430,7 +442,7 @@ export default function Dashboard() {
         },
       ],
     }
-  }, [data?.ipLocations, isChinaMap, colors])
+  }, [data?.ipLocations, colors])
 
   const statsCards = [
     { title: '当前 QPS', value: data?.qps || 0, suffix: 'req/s', icon: Activity },
@@ -465,6 +477,16 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Header with Dark Mode Toggle */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">仪表盘</h2>
+        <div className="flex items-center gap-2">
+          <Sun className="h-4 w-4 text-muted-foreground" />
+          <Switch checked={darkMode} onCheckedChange={setDarkMode} />
+          <Moon className="h-4 w-4 text-muted-foreground" />
+        </div>
+      </div>
+
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statsCards.map((stat, index) => {
@@ -516,16 +538,8 @@ export default function Dashboard() {
 
       {/* Map */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader>
           <CardTitle className="text-base font-medium">访客分布</CardTitle>
-          {isChinaMap && (
-            <button
-              onClick={handleBackToWorld}
-              className="text-sm text-primary hover:underline flex items-center gap-1"
-            >
-              ← 返回世界地图
-            </button>
-          )}
         </CardHeader>
         <CardContent>
           <div className="grid gap-6 lg:grid-cols-4">
@@ -538,33 +552,32 @@ export default function Dashboard() {
                   opts={{ renderer: 'canvas' }}
                   notMerge={true}
                   lazyUpdate={true}
-                  onEvents={{ click: handleMapClick }}
                 />
               )}
             </div>
             <div className="space-y-2">
-              <h4 className="font-medium text-sm">
-                {isChinaMap ? '中国地区排名' : 'IP 地区排名'}
-              </h4>
+              <h4 className="font-medium text-sm">国家排名</h4>
               <div className="space-y-2">
                 {(data?.ipRegionRank || []).map((item, index) => (
                   <div key={index} className="flex items-center gap-2 text-sm">
                     <span
                       className={cn(
-                        "w-5 h-5 flex items-center justify-center rounded text-xs font-medium",
-                        index < 3 ? "bg-primary text-primary-foreground" : "bg-muted"
+                        'w-5 h-5 flex items-center justify-center rounded text-xs font-medium',
+                        index < 3 ? 'bg-primary text-primary-foreground' : 'bg-muted'
                       )}
                     >
                       {index + 1}
                     </span>
-                    <span className="flex-1 truncate">{item.city}</span>
+                    <span className="flex-1 truncate">{item.country}</span>
                     <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
                       <div
                         className="h-full bg-primary rounded-full"
                         style={{ width: `${item.percent}%` }}
                       />
                     </div>
-                    <span className="text-muted-foreground w-12 text-right">{item.percent.toFixed(2)}%</span>
+                    <span className="text-muted-foreground w-12 text-right">
+                      {item.percent.toFixed(2)}%
+                    </span>
                   </div>
                 ))}
               </div>
@@ -581,14 +594,20 @@ export default function Dashboard() {
         <CardContent>
           <div className="space-y-2">
             {(data?.ipTopRank || []).map((item, index) => (
-              <div key={index} className="flex items-center gap-3 text-sm p-2 rounded-lg hover:bg-muted/50 transition-colors">
+              <div
+                key={index}
+                className="flex items-center gap-3 text-sm p-2 rounded-lg hover:bg-muted/50 transition-colors"
+              >
                 <span
                   className={cn(
-                    "w-6 h-6 flex items-center justify-center rounded text-xs font-bold",
-                    index === 0 ? "bg-yellow-500 text-white" :
-                    index === 1 ? "bg-gray-400 text-white" :
-                    index === 2 ? "bg-amber-600 text-white" :
-                    "bg-muted text-muted-foreground"
+                    'w-6 h-6 flex items-center justify-center rounded text-xs font-bold',
+                    index === 0
+                      ? 'bg-yellow-500 text-white'
+                      : index === 1
+                        ? 'bg-gray-400 text-white'
+                        : index === 2
+                          ? 'bg-amber-600 text-white'
+                          : 'bg-muted text-muted-foreground'
                   )}
                 >
                   {index + 1}
@@ -601,13 +620,69 @@ export default function Dashboard() {
               </div>
             ))}
             {(!data?.ipTopRank || data.ipTopRank.length === 0) && (
-              <div className="text-center text-muted-foreground py-8">
-                暂无访问数据
-              </div>
+              <div className="text-center text-muted-foreground py-8">暂无访问数据</div>
             )}
           </div>
         </CardContent>
       </Card>
+
+      {/* Rankings Grid */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <RankingCard
+          title="Host 排行"
+          icon={<Globe className="h-4 w-4" />}
+          data={data?.hostRank || []}
+          colors={colors}
+        />
+        <RankingCard
+          title="Referer 排行"
+          icon={<Link className="h-4 w-4" />}
+          data={data?.refererRank || []}
+          colors={colors}
+        />
+        <RankingCard
+          title="URL Path 排行"
+          icon={<FileText className="h-4 w-4" />}
+          data={data?.pathRank || []}
+          colors={colors}
+        />
+        <RankingCard
+          title="资源类型排行"
+          icon={<FileType className="h-4 w-4" />}
+          data={data?.resourceTypeRank || []}
+          colors={colors}
+        />
+        <RankingCard
+          title="状态码排行"
+          icon={<CheckCircle className="h-4 w-4" />}
+          data={data?.statusRank || []}
+          colors={colors}
+        />
+        <RankingCard
+          title="客户端浏览器排行"
+          icon={<Monitor className="h-4 w-4" />}
+          data={data?.browserRank || []}
+          colors={colors}
+        />
+        <RankingCard
+          title="客户端设备类型排行"
+          icon={<Smartphone className="h-4 w-4" />}
+          data={data?.deviceTypeRank || []}
+          colors={colors}
+        />
+        <RankingCard
+          title="客户端操作系统排行"
+          icon={<Laptop className="h-4 w-4" />}
+          data={data?.osRank || []}
+          colors={colors}
+        />
+        <RankingCard
+          title="User-Agent 排行"
+          icon={<Terminal className="h-4 w-4" />}
+          data={data?.userAgentRank || []}
+          colors={colors}
+        />
+      </div>
     </div>
   )
 }

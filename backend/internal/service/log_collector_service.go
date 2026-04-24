@@ -45,9 +45,41 @@ type LogCollectorService struct {
 	ipLocationCounts   map[string]*IpLocationStat // ip -> stat
 	ipLocationCountsMu sync.RWMutex
 
-	// 地区排名（内存聚合）
-	regionCounts   map[string]*atomic.Int64 // city -> count
+	// 地区排名（内存聚合，按国家）
+	regionCounts   map[string]*atomic.Int64 // country -> count
 	regionCountsMu sync.RWMutex
+
+	// Host 排行
+	hostCounts   map[string]*atomic.Int64
+	hostCountsMu sync.RWMutex
+
+	// Referer 排行
+	refererCounts   map[string]*atomic.Int64
+	refererCountsMu sync.RWMutex
+
+	// URL Path 排行
+	pathCounts   map[string]*atomic.Int64
+	pathCountsMu sync.RWMutex
+
+	// 资源类型排行
+	resourceTypeCounts   map[string]*atomic.Int64
+	resourceTypeCountsMu sync.RWMutex
+
+	// 浏览器排行
+	browserCounts   map[string]*atomic.Int64
+	browserCountsMu sync.RWMutex
+
+	// 设备类型排行
+	deviceTypeCounts   map[string]*atomic.Int64
+	deviceTypeCountsMu sync.RWMutex
+
+	// 操作系统排行
+	osCounts   map[string]*atomic.Int64
+	osCountsMu sync.RWMutex
+
+	// User-Agent 排行
+	userAgentCounts   map[string]*atomic.Int64
+	userAgentCountsMu sync.RWMutex
 
 	// 带宽统计
 	bandwidthPerMin []atomic.Int64 // 每分钟带宽，60个槽位
@@ -90,15 +122,23 @@ func GetLogCollector() *LogCollectorService {
 
 func newLogCollector() *LogCollectorService {
 	s := &LogCollectorService{
-		logChan:          make(chan *model.AccessLog, channelSize),
-		buffer:           make([]*model.AccessLog, 0, batchSize),
-		qpsWindow:        make([]atomic.Int64, 60),
-		bandwidthPerMin:  make([]atomic.Int64, 60),
-		statusCounts:     make(map[string]*atomic.Int64),
-		hourlyCounts:     make(map[int64]*atomic.Int64),
-		ipLocationCounts: make(map[string]*IpLocationStat),
-		regionCounts:     make(map[string]*atomic.Int64),
-		stopCh:           make(chan struct{}),
+		logChan:            make(chan *model.AccessLog, channelSize),
+		buffer:             make([]*model.AccessLog, 0, batchSize),
+		qpsWindow:          make([]atomic.Int64, 60),
+		bandwidthPerMin:    make([]atomic.Int64, 60),
+		statusCounts:       make(map[string]*atomic.Int64),
+		hourlyCounts:       make(map[int64]*atomic.Int64),
+		ipLocationCounts:   make(map[string]*IpLocationStat),
+		regionCounts:       make(map[string]*atomic.Int64),
+		hostCounts:         make(map[string]*atomic.Int64),
+		refererCounts:      make(map[string]*atomic.Int64),
+		pathCounts:         make(map[string]*atomic.Int64),
+		resourceTypeCounts: make(map[string]*atomic.Int64),
+		browserCounts:      make(map[string]*atomic.Int64),
+		deviceTypeCounts:   make(map[string]*atomic.Int64),
+		osCounts:           make(map[string]*atomic.Int64),
+		userAgentCounts:    make(map[string]*atomic.Int64),
+		stopCh:             make(chan struct{}),
 	}
 
 	// 初始化状态码计数器
@@ -205,6 +245,11 @@ func (s *LogCollectorService) processLogs() {
 
 // aggregateStats 内存聚合统计
 func (s *LogCollectorService) aggregateStats(entry *model.AccessLog) {
+	// 过滤健康检查请求
+	if s.isHealthCheck(entry) {
+		return
+	}
+
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
@@ -240,6 +285,58 @@ func (s *LogCollectorService) aggregateStats(entry *model.AccessLog) {
 
 	// IP 地理位置统计（异步查询）
 	go s.updateIPLocation(entry.RemoteAddr)
+
+	// Host 排行
+	if entry.Request != "" {
+		s.incrementHost(entry.Request)
+	}
+
+	// Referer 排行
+	if entry.Referer != "" && entry.Referer != "-" {
+		s.incrementReferer(entry.Referer)
+	}
+
+	// URL Path 排行
+	if entry.Path != "" {
+		s.incrementPath(entry.Path)
+	}
+
+	// 资源类型排行
+	if entry.Path != "" {
+		s.incrementResourceType(entry.Path)
+	}
+
+	// 浏览器排行
+	if entry.UserAgent != "" && entry.UserAgent != "-" {
+		s.incrementBrowser(entry.UserAgent)
+	}
+
+	// 设备类型排行
+	if entry.UserAgent != "" && entry.UserAgent != "-" {
+		s.incrementDeviceType(entry.UserAgent)
+	}
+
+	// 操作系统排行
+	if entry.UserAgent != "" && entry.UserAgent != "-" {
+		s.incrementOS(entry.UserAgent)
+	}
+
+	// User-Agent 排行
+	if entry.UserAgent != "" && entry.UserAgent != "-" {
+		s.incrementUserAgent(entry.UserAgent)
+	}
+}
+
+// isHealthCheck 判断是否为健康检查请求
+func (s *LogCollectorService) isHealthCheck(entry *model.AccessLog) bool {
+	// 过滤本地健康检查请求
+	if entry.RemoteAddr == "127.0.0.1" || entry.RemoteAddr == "::1" || entry.RemoteAddr == "localhost" {
+		// 健康检查路径
+		if entry.Path == "/api/health" || entry.Path == "/health" || entry.Path == "/" {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *LogCollectorService) incrementStatus(status int) {
@@ -273,6 +370,176 @@ func (s *LogCollectorService) incrementHourly(hourTs int64) {
 	s.hourlyCountsMu.Unlock()
 }
 
+func (s *LogCollectorService) incrementHost(host string) {
+	s.hostCountsMu.Lock()
+	defer s.hostCountsMu.Unlock()
+	if counter, ok := s.hostCounts[host]; ok {
+		counter.Add(1)
+	} else {
+		s.hostCounts[host] = &atomic.Int64{}
+		s.hostCounts[host].Add(1)
+	}
+}
+
+func (s *LogCollectorService) incrementReferer(referer string) {
+	s.refererCountsMu.Lock()
+	defer s.refererCountsMu.Unlock()
+	if counter, ok := s.refererCounts[referer]; ok {
+		counter.Add(1)
+	} else {
+		s.refererCounts[referer] = &atomic.Int64{}
+		s.refererCounts[referer].Add(1)
+	}
+}
+
+func (s *LogCollectorService) incrementPath(path string) {
+	s.pathCountsMu.Lock()
+	defer s.pathCountsMu.Unlock()
+	if counter, ok := s.pathCounts[path]; ok {
+		counter.Add(1)
+	} else {
+		s.pathCounts[path] = &atomic.Int64{}
+		s.pathCounts[path].Add(1)
+	}
+}
+
+func (s *LogCollectorService) incrementResourceType(path string) {
+	resourceType := s.getResourceType(path)
+	s.resourceTypeCountsMu.Lock()
+	defer s.resourceTypeCountsMu.Unlock()
+	if counter, ok := s.resourceTypeCounts[resourceType]; ok {
+		counter.Add(1)
+	} else {
+		s.resourceTypeCounts[resourceType] = &atomic.Int64{}
+		s.resourceTypeCounts[resourceType].Add(1)
+	}
+}
+
+func (s *LogCollectorService) getResourceType(path string) string {
+	path = strings.ToLower(path)
+	dotIdx := strings.LastIndex(path, ".")
+	if dotIdx == -1 {
+		return "Other"
+	}
+	ext := path[dotIdx:]
+	switch {
+	case ext == ".html", ext == ".htm":
+		return "HTML"
+	case ext == ".css":
+		return "CSS"
+	case ext == ".js", ext == ".mjs":
+		return "JS"
+	case ext == ".jpg", ext == ".jpeg", ext == ".png", ext == ".gif", ext == ".svg", ext == ".webp", ext == ".ico":
+		return "Image"
+	case ext == ".woff", ext == ".woff2", ext == ".ttf", ext == ".eot", ext == ".otf":
+		return "Font"
+	case ext == ".mp4", ext == ".webm", ext == ".avi", ext == ".mov", ext == ".flv":
+		return "Video"
+	case ext == ".mp3", ext == ".wav", ext == ".ogg", ext == ".flac":
+		return "Audio"
+	case ext == ".json", ext == ".xml":
+		return "Data"
+	case ext == ".pdf", ext == ".doc", ext == ".docx", ext == ".xls", ext == ".xlsx":
+		return "Document"
+	case ext == ".zip", ext == ".rar", ext == ".tar", ext == ".gz", ext == ".7z":
+		return "Archive"
+	default:
+		return "Other"
+	}
+}
+
+func (s *LogCollectorService) incrementBrowser(ua string) {
+	browser := s.parseBrowser(ua)
+	s.browserCountsMu.Lock()
+	defer s.browserCountsMu.Unlock()
+	if counter, ok := s.browserCounts[browser]; ok {
+		counter.Add(1)
+	} else {
+		s.browserCounts[browser] = &atomic.Int64{}
+		s.browserCounts[browser].Add(1)
+	}
+}
+
+func (s *LogCollectorService) parseBrowser(ua string) string {
+	uaLower := strings.ToLower(ua)
+	switch {
+	case strings.Contains(uaLower, "edg/") || strings.Contains(uaLower, "edge/"):
+		return "Edge"
+	case strings.Contains(uaLower, "chrome/") && !strings.Contains(uaLower, "edg/"):
+		return "Chrome"
+	case strings.Contains(uaLower, "firefox/"):
+		return "Firefox"
+	case strings.Contains(uaLower, "safari/") && !strings.Contains(uaLower, "chrome/"):
+		return "Safari"
+	case strings.Contains(uaLower, "opera/") || strings.Contains(uaLower, "opr/"):
+		return "Opera"
+	default:
+		return "Other"
+	}
+}
+
+func (s *LogCollectorService) incrementDeviceType(ua string) {
+	deviceType := s.parseDeviceType(ua)
+	s.deviceTypeCountsMu.Lock()
+	defer s.deviceTypeCountsMu.Unlock()
+	if counter, ok := s.deviceTypeCounts[deviceType]; ok {
+		counter.Add(1)
+	} else {
+		s.deviceTypeCounts[deviceType] = &atomic.Int64{}
+		s.deviceTypeCounts[deviceType].Add(1)
+	}
+}
+
+func (s *LogCollectorService) parseDeviceType(ua string) string {
+	uaLower := strings.ToLower(ua)
+	if strings.Contains(uaLower, "mobile") || strings.Contains(uaLower, "android") ||
+		strings.Contains(uaLower, "iphone") || strings.Contains(uaLower, "ipad") {
+		return "Mobile"
+	}
+	return "Desktop"
+}
+
+func (s *LogCollectorService) incrementOS(ua string) {
+	os := s.parseOS(ua)
+	s.osCountsMu.Lock()
+	defer s.osCountsMu.Unlock()
+	if counter, ok := s.osCounts[os]; ok {
+		counter.Add(1)
+	} else {
+		s.osCounts[os] = &atomic.Int64{}
+		s.osCounts[os].Add(1)
+	}
+}
+
+func (s *LogCollectorService) parseOS(ua string) string {
+	uaLower := strings.ToLower(ua)
+	switch {
+	case strings.Contains(uaLower, "windows nt"):
+		return "Windows"
+	case strings.Contains(uaLower, "mac os") || strings.Contains(uaLower, "macos"):
+		return "macOS"
+	case strings.Contains(uaLower, "android"):
+		return "Android"
+	case strings.Contains(uaLower, "iphone") || strings.Contains(uaLower, "ipad"):
+		return "iOS"
+	case strings.Contains(uaLower, "linux"):
+		return "Linux"
+	default:
+		return "Other"
+	}
+}
+
+func (s *LogCollectorService) incrementUserAgent(ua string) {
+	s.userAgentCountsMu.Lock()
+	defer s.userAgentCountsMu.Unlock()
+	if counter, ok := s.userAgentCounts[ua]; ok {
+		counter.Add(1)
+	} else {
+		s.userAgentCounts[ua] = &atomic.Int64{}
+		s.userAgentCounts[ua].Add(1)
+	}
+}
+
 func (s *LogCollectorService) updateIPLocation(ip string) {
 	// 先检查缓存
 	s.ipLocationCountsMu.RLock()
@@ -304,9 +571,9 @@ func (s *LogCollectorService) updateIPLocation(ip string) {
 		stat.Requests.Add(1)
 		s.ipLocationCounts[ip] = stat
 
-		// 同时更新地区排名
-		if geo.City != "" && geo.City != "Unknown" {
-			s.doIncrementRegion(geo.City)
+		// 同时更新地区排名（按国家）
+		if geo.Country != "" && geo.Country != "Unknown" {
+			s.doIncrementRegion(geo.Country)
 		}
 	}
 	s.ipLocationCountsMu.Unlock()
@@ -557,36 +824,39 @@ func (s *LogCollectorService) GetHourlyTrend() []map[string]interface{} {
 	return result
 }
 
-// GetIPLocations 获取 IP 地理位置分布（Top N）
+// GetIPLocations 获取 IP 地理位置分布（按国家聚合，Top N）
 func (s *LogCollectorService) GetIPLocations(limit int) []map[string]interface{} {
 	s.ipLocationCountsMu.RLock()
 	defer s.ipLocationCountsMu.RUnlock()
 
-	// 转换为切片并排序
-	type ipStat struct {
-		IP       string
+	// 按国家聚合
+	type countryStat struct {
 		Country  string
-		Region   string
-		City     string
 		Lat      float64
 		Lon      float64
 		Requests int64
 	}
 
-	stats := make([]ipStat, 0, len(s.ipLocationCounts))
-	for ip, stat := range s.ipLocationCounts {
-		stats = append(stats, ipStat{
-			IP:       ip,
-			Country:  stat.Country,
-			Region:   stat.Region,
-			City:     stat.City,
-			Lat:      stat.Lat,
-			Lon:      stat.Lon,
-			Requests: stat.Requests.Load(),
-		})
+	countryMap := make(map[string]*countryStat)
+	for _, stat := range s.ipLocationCounts {
+		if c, ok := countryMap[stat.Country]; ok {
+			c.Requests += stat.Requests.Load()
+		} else {
+			countryMap[stat.Country] = &countryStat{
+				Country:  stat.Country,
+				Lat:      stat.Lat,
+				Lon:      stat.Lon,
+				Requests: stat.Requests.Load(),
+			}
+		}
 	}
 
-	// 简单排序（取 Top N）
+	stats := make([]countryStat, 0, len(countryMap))
+	for _, c := range countryMap {
+		stats = append(stats, *c)
+	}
+
+	// 排序
 	for i := 0; i < len(stats)-1; i++ {
 		for j := i + 1; j < len(stats); j++ {
 			if stats[j].Requests > stats[i].Requests {
@@ -601,34 +871,33 @@ func (s *LogCollectorService) GetIPLocations(limit int) []map[string]interface{}
 
 	result := make([]map[string]interface{}, 0, limit)
 	for i := 0; i < limit; i++ {
-		s := stats[i]
-		if s.Lat != 0 && s.Lon != 0 {
+		c := stats[i]
+		if c.Lat != 0 && c.Lon != 0 {
 			result = append(result, map[string]interface{}{
-				"name":    s.City,
-				"value":   []float64{s.Lon, s.Lat, float64(s.Requests)},
-				"country": s.Country,
-				"region":  s.Region,
+				"name":    c.Country,
+				"value":   []float64{c.Lon, c.Lat, float64(c.Requests)},
+				"country": c.Country,
 			})
 		}
 	}
 	return result
 }
 
-// GetRegionRank 获取地区排名（Top N）
+// GetRegionRank 获取国家排名（Top N）
 func (s *LogCollectorService) GetRegionRank(limit int) []map[string]interface{} {
 	s.regionCountsMu.RLock()
 	defer s.regionCountsMu.RUnlock()
 
 	type regionStat struct {
-		City  string
-		Count int64
+		Country string
+		Count   int64
 	}
 
 	stats := make([]regionStat, 0, len(s.regionCounts))
-	for city, counter := range s.regionCounts {
+	for country, counter := range s.regionCounts {
 		stats = append(stats, regionStat{
-			City:  city,
-			Count: counter.Load(),
+			Country: country,
+			Count:   counter.Load(),
 		})
 	}
 
@@ -657,7 +926,7 @@ func (s *LogCollectorService) GetRegionRank(limit int) []map[string]interface{} 
 			percent = float64(stats[i].Count) / float64(total) * 100
 		}
 		result = append(result, map[string]interface{}{
-			"city":    stats[i].City,
+			"country": stats[i].Country,
 			"count":   stats[i].Count,
 			"percent": percent,
 		})
@@ -672,7 +941,7 @@ func (s *LogCollectorService) GetIPTopRank(limit int) []map[string]interface{} {
 
 	type ipStat struct {
 		IP       string
-		City     string
+		Country  string
 		Requests int64
 	}
 
@@ -680,7 +949,7 @@ func (s *LogCollectorService) GetIPTopRank(limit int) []map[string]interface{} {
 	for ip, stat := range s.ipLocationCounts {
 		stats = append(stats, ipStat{
 			IP:       ip,
-			City:     stat.City,
+			Country:  stat.Country,
 			Requests: stat.Requests.Load(),
 		})
 	}
@@ -702,22 +971,200 @@ func (s *LogCollectorService) GetIPTopRank(limit int) []map[string]interface{} {
 	for i := 0; i < limit; i++ {
 		result = append(result, map[string]interface{}{
 			"ip":       stats[i].IP,
-			"region":   stats[i].City,
+			"region":   stats[i].Country,
 			"requests": stats[i].Requests,
 		})
 	}
 	return result
 }
 
+// GetStatusRank 获取状态码排行（Top N）
+func (s *LogCollectorService) GetStatusRank(limit int) []map[string]interface{} {
+	s.statusCountsMu.RLock()
+	defer s.statusCountsMu.RUnlock()
+
+	type statusStat struct {
+		Name  string
+		Count int64
+	}
+
+	stats := make([]statusStat, 0, len(s.statusCounts))
+	for name, counter := range s.statusCounts {
+		stats = append(stats, statusStat{
+			Name:  name,
+			Count: counter.Load(),
+		})
+	}
+
+	// 排序
+	for i := 0; i < len(stats)-1; i++ {
+		for j := i + 1; j < len(stats); j++ {
+			if stats[j].Count > stats[i].Count {
+				stats[i], stats[j] = stats[j], stats[i]
+			}
+		}
+	}
+
+	if limit > len(stats) {
+		limit = len(stats)
+	}
+
+	var total int64
+	for _, st := range stats {
+		total += st.Count
+	}
+
+	result := make([]map[string]interface{}, 0, limit)
+	for i := 0; i < limit; i++ {
+		percent := float64(0)
+		if total > 0 {
+			percent = float64(stats[i].Count) / float64(total) * 100
+		}
+		result = append(result, map[string]interface{}{
+			"name":    stats[i].Name,
+			"count":   stats[i].Count,
+			"percent": percent,
+		})
+	}
+	return result
+}
+
+func (s *LogCollectorService) getRankData(counts map[string]*atomic.Int64, mu *sync.RWMutex, limit int) []map[string]interface{} {
+	mu.RLock()
+	defer mu.RUnlock()
+
+	type rankStat struct {
+		Name  string
+		Count int64
+	}
+
+	stats := make([]rankStat, 0, len(counts))
+	for name, counter := range counts {
+		stats = append(stats, rankStat{
+			Name:  name,
+			Count: counter.Load(),
+		})
+	}
+
+	// 排序
+	for i := 0; i < len(stats)-1; i++ {
+		for j := i + 1; j < len(stats); j++ {
+			if stats[j].Count > stats[i].Count {
+				stats[i], stats[j] = stats[j], stats[i]
+			}
+		}
+	}
+
+	if limit > len(stats) {
+		limit = len(stats)
+	}
+
+	var total int64
+	for _, st := range stats {
+		total += st.Count
+	}
+
+	result := make([]map[string]interface{}, 0, limit)
+	for i := 0; i < limit; i++ {
+		percent := float64(0)
+		if total > 0 {
+			percent = float64(stats[i].Count) / float64(total) * 100
+		}
+		result = append(result, map[string]interface{}{
+			"name":    stats[i].Name,
+			"count":   stats[i].Count,
+			"percent": percent,
+		})
+	}
+	return result
+}
+
+// GetHostRank 获取 Host 排行（Top N）
+func (s *LogCollectorService) GetHostRank(limit int) []map[string]interface{} {
+	return s.getRankData(s.hostCounts, &s.hostCountsMu, limit)
+}
+
+// GetRefererRank 获取 Referer 排行（Top N）
+func (s *LogCollectorService) GetRefererRank(limit int) []map[string]interface{} {
+	return s.getRankData(s.refererCounts, &s.refererCountsMu, limit)
+}
+
+// GetPathRank 获取 URL Path 排行（Top N）
+func (s *LogCollectorService) GetPathRank(limit int) []map[string]interface{} {
+	return s.getRankData(s.pathCounts, &s.pathCountsMu, limit)
+}
+
+// GetResourceTypeRank 获取资源类型排行（Top N）
+func (s *LogCollectorService) GetResourceTypeRank(limit int) []map[string]interface{} {
+	return s.getRankData(s.resourceTypeCounts, &s.resourceTypeCountsMu, limit)
+}
+
+// GetBrowserRank 获取浏览器排行（Top N）
+func (s *LogCollectorService) GetBrowserRank(limit int) []map[string]interface{} {
+	return s.getRankData(s.browserCounts, &s.browserCountsMu, limit)
+}
+
+// GetDeviceTypeRank 获取设备类型排行（Top N）
+func (s *LogCollectorService) GetDeviceTypeRank(limit int) []map[string]interface{} {
+	return s.getRankData(s.deviceTypeCounts, &s.deviceTypeCountsMu, limit)
+}
+
+// GetOSRank 获取操作系统排行（Top N）
+func (s *LogCollectorService) GetOSRank(limit int) []map[string]interface{} {
+	return s.getRankData(s.osCounts, &s.osCountsMu, limit)
+}
+
+// GetUserAgentRank 获取 User-Agent 排行（Top N）
+func (s *LogCollectorService) GetUserAgentRank(limit int) []map[string]interface{} {
+	return s.getRankData(s.userAgentCounts, &s.userAgentCountsMu, limit)
+}
+
 // ResetDailyStats 每日重置统计（由定时任务调用）
 func (s *LogCollectorService) ResetDailyStats() {
 	s.todayPV.Store(0)
 	s.todayUV = sync.Map{}
+
 	s.statusCountsMu.Lock()
 	for k := range s.statusCounts {
 		s.statusCounts[k] = &atomic.Int64{}
 	}
 	s.statusCountsMu.Unlock()
+
+	s.hostCountsMu.Lock()
+	s.hostCounts = make(map[string]*atomic.Int64)
+	s.hostCountsMu.Unlock()
+
+	s.refererCountsMu.Lock()
+	s.refererCounts = make(map[string]*atomic.Int64)
+	s.refererCountsMu.Unlock()
+
+	s.pathCountsMu.Lock()
+	s.pathCounts = make(map[string]*atomic.Int64)
+	s.pathCountsMu.Unlock()
+
+	s.resourceTypeCountsMu.Lock()
+	s.resourceTypeCounts = make(map[string]*atomic.Int64)
+	s.resourceTypeCountsMu.Unlock()
+
+	s.browserCountsMu.Lock()
+	s.browserCounts = make(map[string]*atomic.Int64)
+	s.browserCountsMu.Unlock()
+
+	s.deviceTypeCountsMu.Lock()
+	s.deviceTypeCounts = make(map[string]*atomic.Int64)
+	s.deviceTypeCountsMu.Unlock()
+
+	s.osCountsMu.Lock()
+	s.osCounts = make(map[string]*atomic.Int64)
+	s.osCountsMu.Unlock()
+
+	s.userAgentCountsMu.Lock()
+	s.userAgentCounts = make(map[string]*atomic.Int64)
+	s.userAgentCountsMu.Unlock()
+
+	s.regionCountsMu.Lock()
+	s.regionCounts = make(map[string]*atomic.Int64)
+	s.regionCountsMu.Unlock()
 }
 
 // ========== 日志解析 ==========

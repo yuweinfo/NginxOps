@@ -28,10 +28,19 @@ func (s *StatsService) GetDashboard() map[string]interface{} {
 	uvToday := collector.GetTodayUV()
 	bandwidth := collector.GetBandwidth()
 	statusDistribution := collector.GetStatusDistribution()
+	statusRank := collector.GetStatusRank(10)
 	hourlyTrend := collector.GetHourlyTrend()
 	ipLocations := collector.GetIPLocations(100)
 	regionRank := collector.GetRegionRank(10)
 	ipTopRank := collector.GetIPTopRank(10)
+	hostRank := collector.GetHostRank(10)
+	refererRank := collector.GetRefererRank(10)
+	pathRank := collector.GetPathRank(10)
+	resourceTypeRank := collector.GetResourceTypeRank(10)
+	browserRank := collector.GetBrowserRank(10)
+	deviceTypeRank := collector.GetDeviceTypeRank(10)
+	osRank := collector.GetOSRank(10)
+	userAgentRank := collector.GetUserAgentRank(10)
 
 	// 活跃站点数（从数据库获取，因为变化频率低）
 	sites, _ := s.siteRepo.FindByEnabled(true)
@@ -46,9 +55,18 @@ func (s *StatsService) GetDashboard() map[string]interface{} {
 		"activeSites":        activeSites,
 		"hourlyTrend":        hourlyTrend,
 		"statusDistribution": statusDistribution,
+		"statusRank":         statusRank,
 		"ipLocations":        ipLocations,
 		"ipRegionRank":       regionRank,
 		"ipTopRank":          ipTopRank,
+		"hostRank":           hostRank,
+		"refererRank":        refererRank,
+		"pathRank":           pathRank,
+		"resourceTypeRank":   resourceTypeRank,
+		"browserRank":        browserRank,
+		"deviceTypeRank":     deviceTypeRank,
+		"osRank":             osRank,
+		"userAgentRank":      userAgentRank,
 	}
 }
 

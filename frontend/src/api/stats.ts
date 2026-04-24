@@ -8,8 +8,17 @@ export interface DashboardData {
   hourlyTrend: Array<{ hour: string; requests: number }>
   statusDistribution: { '2xx': number; '3xx': number; '4xx': number; '5xx': number }
   ipLocations: Array<{ name: string; value: number[]; country?: string; region?: string }>
-  ipRegionRank: Array<{ city: string; count: number; percent: number }>
+  ipRegionRank: Array<{ country: string; count: number; percent: number }>
   ipTopRank: Array<{ ip: string; region: string; requests: number }>
+  hostRank: Array<{ name: string; count: number; percent: number }>
+  refererRank: Array<{ name: string; count: number; percent: number }>
+  pathRank: Array<{ name: string; count: number; percent: number }>
+  resourceTypeRank: Array<{ name: string; count: number; percent: number }>
+  statusRank: Array<{ name: string; count: number; percent: number }>
+  browserRank: Array<{ name: string; count: number; percent: number }>
+  deviceTypeRank: Array<{ name: string; count: number; percent: number }>
+  osRank: Array<{ name: string; count: number; percent: number }>
+  userAgentRank: Array<{ name: string; count: number; percent: number }>
 }
 
 export interface LogEntry {
