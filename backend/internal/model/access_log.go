@@ -17,6 +17,7 @@ type AccessLog struct {
 	Referer     string    `json:"referer" gorm:"size:500"`
 	UserAgent   string    `json:"userAgent" gorm:"size:500"`
 	RT          float64   `json:"rt"` // 响应时间(秒)
+	Host        string    `json:"host" gorm:"size:255"`
 	CreatedAt   time.Time `json:"createdAt" gorm:"autoCreateTime"`
 }
 

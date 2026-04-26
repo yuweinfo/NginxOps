@@ -22,7 +22,18 @@ func NewStatsHandler() *StatsHandler {
 // GetDashboard 获取仪表盘数据
 // GET /api/stats/dashboard
 func (h *StatsHandler) GetDashboard(c *gin.Context) {
-	data := h.service.GetDashboard()
+	startStr := c.Query("start")
+	endStr := c.Query("end")
+
+	var start, end time.Time
+	if startStr != "" {
+		start, _ = time.Parse(time.RFC3339, startStr)
+	}
+	if endStr != "" {
+		end, _ = time.Parse(time.RFC3339, endStr)
+	}
+
+	data := h.service.GetDashboard(start, end)
 	response.Success(c, data)
 }
 

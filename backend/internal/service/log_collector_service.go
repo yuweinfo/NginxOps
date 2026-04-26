@@ -34,7 +34,7 @@ type LogCollectorService struct {
 	qpsWindowPos  int
 
 	// 状态码统计（内存聚合）
-	statusCounts   map[string]*atomic.Int64 // 2xx, 3xx, 4xx, 5xx
+	statusCounts   map[string]*atomic.Int64 // 200, 301, 404, 500 etc.
 	statusCountsMu sync.RWMutex
 
 	// 小时趋势（内存聚合）
@@ -287,8 +287,8 @@ func (s *LogCollectorService) aggregateStats(entry *model.AccessLog) {
 	go s.updateIPLocation(entry.RemoteAddr)
 
 	// Host 排行
-	if entry.Request != "" {
-		s.incrementHost(entry.Request)
+	if entry.Host != "" {
+		s.incrementHost(entry.Host)
 	}
 
 	// Referer 排行
@@ -340,23 +340,16 @@ func (s *LogCollectorService) isHealthCheck(entry *model.AccessLog) bool {
 }
 
 func (s *LogCollectorService) incrementStatus(status int) {
-	var key string
-	switch {
-	case status >= 200 && status < 300:
-		key = "2xx"
-	case status >= 300 && status < 400:
-		key = "3xx"
-	case status >= 400 && status < 500:
-		key = "4xx"
-	default:
-		key = "5xx"
-	}
+	key := strconv.Itoa(status)
 
-	s.statusCountsMu.RLock()
+	s.statusCountsMu.Lock()
 	if counter, ok := s.statusCounts[key]; ok {
 		counter.Add(1)
+	} else {
+		s.statusCounts[key] = &atomic.Int64{}
+		s.statusCounts[key].Add(1)
 	}
-	s.statusCountsMu.RUnlock()
+	s.statusCountsMu.Unlock()
 }
 
 func (s *LogCollectorService) incrementHourly(hourTs int64) {
@@ -1169,7 +1162,7 @@ func (s *LogCollectorService) ResetDailyStats() {
 
 // ========== 日志解析 ==========
 
-var logPattern = regexp.MustCompile(`^(\S+) - (\S+) \[([^\]]+)\] "(\S+) ([^"]+) (\S+)" (\d+) (\d+) "([^"]*)" "([^"]*)" rt=([0-9.]+)`)
+var logPattern = regexp.MustCompile(`^(\S+) - (\S+) \[([^\]]+)\] "(\S+) ([^"]+) (\S+)" (\d+) (\d+) "([^"]*)" "([^"]*)" rt=([0-9.]+)(?: host=(\S+))?`)
 
 func (s *LogCollectorService) parseLine(line string) *model.AccessLog {
 	matches := logPattern.FindStringSubmatch(line)
@@ -1191,6 +1184,11 @@ func (s *LogCollectorService) parseLine(line string) *model.AccessLog {
 		path = path[:1024]
 	}
 
+	host := ""
+	if len(matches) >= 13 {
+		host = matches[12]
+	}
+
 	return &model.AccessLog{
 		RemoteAddr: matches[1],
 		RemoteUser: nullIfDash(matches[2]),
@@ -1204,6 +1202,7 @@ func (s *LogCollectorService) parseLine(line string) *model.AccessLog {
 		Referer:    nullIfDash(matches[9]),
 		UserAgent:  nullIfDash(matches[10]),
 		RT:         rt,
+		Host:       host,
 	}
 }
 
