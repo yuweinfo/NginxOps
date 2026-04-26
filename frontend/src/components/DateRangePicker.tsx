@@ -221,6 +221,12 @@ export default function DateRangePicker({
     return newDate
   }, [])
 
+  const getCombinedRange = React.useCallback((): DateRange => {
+    const from = applyTimeToDate(value?.from, startTime)
+    const to = applyTimeToDate(value?.to, endTime)
+    return { from, to }
+  }, [value?.from, value?.to, startTime, endTime, applyTimeToDate])
+
   const handlePresetSelect = React.useCallback(
     (preset: PresetRange) => {
       const range = preset.getDateRange()
@@ -234,8 +240,8 @@ export default function DateRangePicker({
   const handleCalendarSelect = React.useCallback(
     (range: DateRange | undefined) => {
       if (range?.from) {
-        const newFrom = applyTimeToDate(range.from, startTime) ?? range.from
-        const newTo = range.to ? (applyTimeToDate(range.to, endTime) ?? range.to) : undefined
+        const newFrom = applyTimeToDate(range.from, startTime)
+        const newTo = range.to ? applyTimeToDate(range.to, endTime) : undefined
         onChange?.({ from: newFrom, to: newTo })
       } else if (range === undefined) {
         onChange?.({ from: undefined, to: undefined })
@@ -250,13 +256,12 @@ export default function DateRangePicker({
 
   const handleConfirm = React.useCallback(() => {
     if (value?.from) {
-      const newFrom = applyTimeToDate(value.from, startTime)
-      const newTo = value?.to ? applyTimeToDate(value.to, endTime) : undefined
-      onChange?.({ from: newFrom, to: newTo })
+      const range = getCombinedRange()
+      onChange?.(range)
       setShowCustom(false)
       setOpen(false)
     }
-  }, [value?.from, value?.to, startTime, endTime, onChange, applyTimeToDate])
+  }, [value?.from, getCombinedRange, onChange])
 
   const handleClear = React.useCallback(() => {
     onChange?.({ from: undefined, to: undefined })
@@ -359,64 +364,66 @@ export default function DateRangePicker({
             )}
           </div>
         ) : (
-          <div className="flex flex-col md:flex-row">
-            <div className="p-2 border-b md:border-b-0 md:border-r border-border min-w-[120px]">
+          <div className="flex flex-col">
+            <div className="p-2 border-b border-border">
               <Button
                 variant="ghost"
                 size="sm"
-                className="w-full justify-start text-sm px-3 py-1.5 h-auto mb-1"
+                className="w-full justify-start text-sm px-2 py-1.5 h-auto"
                 onClick={handleToggleCustom}
               >
                 ← 返回预设
               </Button>
             </div>
-            <div className="flex flex-col">
-              <div className="p-3">
-                <Calendar
-                  mode="range"
-                  selected={value}
-                  onSelect={handleCalendarSelect}
-                  locale={zhCN}
-                  numberOfMonths={1}
-                  defaultMonth={value?.from}
-                  className="rounded-md"
-                />
-              </div>
-              <div className="px-3 pb-3 space-y-2 border-t border-border pt-2">
-                <TimePicker
-                  hours={startTime.hours}
-                  minutes={startTime.minutes}
-                  seconds={startTime.seconds}
-                  onHoursChange={(h) => setStartTime((prev) => ({ ...prev, hours: h }))}
-                  onMinutesChange={(m) => setStartTime((prev) => ({ ...prev, minutes: m }))}
-                  onSecondsChange={(s) => setStartTime((prev) => ({ ...prev, seconds: s }))}
-                  label="开始"
-                />
-                <TimePicker
-                  hours={endTime.hours}
-                  minutes={endTime.minutes}
-                  seconds={endTime.seconds}
-                  onHoursChange={(h) => setEndTime((prev) => ({ ...prev, hours: h }))}
-                  onMinutesChange={(m) => setEndTime((prev) => ({ ...prev, minutes: m }))}
-                  onSecondsChange={(s) => setEndTime((prev) => ({ ...prev, seconds: s }))}
-                  label="结束"
-                />
-                {value?.from && (
-                  <div className="flex items-center justify-between gap-2 pt-1">
-                    <span className="text-xs text-muted-foreground truncate">
-                      {formatRangeLabel(value)}
-                    </span>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="h-7 px-3 text-xs"
-                      onClick={handleConfirm}
-                    >
-                      确认
-                    </Button>
-                  </div>
-                )}
-              </div>
+            <div className="p-0">
+              <Calendar
+                mode="range"
+                selected={value}
+                onSelect={handleCalendarSelect}
+                locale={zhCN}
+                numberOfMonths={2}
+                defaultMonth={value?.from}
+              />
+            </div>
+            <div className="px-3 pb-3 space-y-2 border-t border-border pt-3">
+              <TimePicker
+                hours={startTime.hours}
+                minutes={startTime.minutes}
+                seconds={startTime.seconds}
+                onHoursChange={(h) => setStartTime((prev) => ({ ...prev, hours: h }))}
+                onMinutesChange={(m) => setStartTime((prev) => ({ ...prev, minutes: m }))}
+                onSecondsChange={(s) => setStartTime((prev) => ({ ...prev, seconds: s }))}
+                label="开始"
+              />
+              <TimePicker
+                hours={endTime.hours}
+                minutes={endTime.minutes}
+                seconds={endTime.seconds}
+                onHoursChange={(h) => setEndTime((prev) => ({ ...prev, hours: h }))}
+                onMinutesChange={(m) => setEndTime((prev) => ({ ...prev, minutes: m }))}
+                onSecondsChange={(s) => setEndTime((prev) => ({ ...prev, seconds: s }))}
+                label="结束"
+              />
+              {value?.from && (
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  <span className="text-xs text-muted-foreground truncate">
+                    {formatRangeLabel(getCombinedRange())}
+                  </span>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="h-7 px-3 text-xs"
+                    onClick={handleConfirm}
+                  >
+                    确认
+                  </Button>
+                </div>
+              )}
+              {!value?.from && (
+                <div className="text-center text-xs text-muted-foreground py-2">
+                  请在上方日历中选择日期范围
+                </div>
+              )}
             </div>
           </div>
         )}
