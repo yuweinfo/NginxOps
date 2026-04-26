@@ -282,13 +282,13 @@ export default function DateRangePicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-auto p-0 mx-4"
-        align="start"
+        className="w-fit max-w-[95vw] p-0"
+        align="end"
         sideOffset={8}
-        avoidCollisions={false}
+        avoidCollisions={true}
       >
-        <div className="flex flex-col md:flex-row">
-          <div className="flex flex-row md:flex-col gap-1 p-2 border-b md:border-b-0 md:border-r border-border min-w-[120px] max-w-[160px]">
+        <div className="flex flex-col sm:flex-row">
+          <div className="flex flex-row sm:flex-col gap-1 p-2 border-b sm:border-b-0 sm:border-r border-border shrink-0">
             {presets.map((preset, index) => {
               const isActive = index === activePresetIndex
               return (
@@ -297,7 +297,7 @@ export default function DateRangePicker({
                   variant={isActive ? 'secondary' : 'ghost'}
                   size="sm"
                   className={cn(
-                    'justify-start text-sm px-3 py-1.5 h-auto whitespace-normal break-all',
+                    'justify-start text-sm px-2 py-1 h-auto whitespace-nowrap',
                     isActive && 'font-medium'
                   )}
                   onClick={() => handlePresetSelect(preset)}
@@ -307,7 +307,7 @@ export default function DateRangePicker({
               )
             })}
           </div>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <Calendar
               mode="range"
               selected={localRange}
@@ -317,24 +317,26 @@ export default function DateRangePicker({
               defaultMonth={localRange?.from}
             />
             <div className="px-3 pb-3 space-y-2 border-t border-border pt-3">
-              <TimePicker
-                hours={startTime.hours}
-                minutes={startTime.minutes}
-                seconds={startTime.seconds}
-                onHoursChange={(h) => setStartTime((prev) => ({ ...prev, hours: h }))}
-                onMinutesChange={(m) => setStartTime((prev) => ({ ...prev, minutes: m }))}
-                onSecondsChange={(s) => setStartTime((prev) => ({ ...prev, seconds: s }))}
-                label="开始"
-              />
-              <TimePicker
-                hours={endTime.hours}
-                minutes={endTime.minutes}
-                seconds={endTime.seconds}
-                onHoursChange={(h) => setEndTime((prev) => ({ ...prev, hours: h }))}
-                onMinutesChange={(m) => setEndTime((prev) => ({ ...prev, minutes: m }))}
-                onSecondsChange={(s) => setEndTime((prev) => ({ ...prev, seconds: s }))}
-                label="结束"
-              />
+              <div className="flex flex-wrap gap-3">
+                <TimePicker
+                  hours={startTime.hours}
+                  minutes={startTime.minutes}
+                  seconds={startTime.seconds}
+                  onHoursChange={(h) => setStartTime((prev) => ({ ...prev, hours: h }))}
+                  onMinutesChange={(m) => setStartTime((prev) => ({ ...prev, minutes: m }))}
+                  onSecondsChange={(s) => setStartTime((prev) => ({ ...prev, seconds: s }))}
+                  label="开始"
+                />
+                <TimePicker
+                  hours={endTime.hours}
+                  minutes={endTime.minutes}
+                  seconds={endTime.seconds}
+                  onHoursChange={(h) => setEndTime((prev) => ({ ...prev, hours: h }))}
+                  onMinutesChange={(m) => setEndTime((prev) => ({ ...prev, minutes: m }))}
+                  onSecondsChange={(s) => setEndTime((prev) => ({ ...prev, seconds: s }))}
+                  label="结束"
+                />
+              </div>
               {localRange?.from && (
                 <div className="flex items-center justify-between gap-2 pt-1">
                   <span className="text-xs text-muted-foreground truncate">
@@ -343,7 +345,7 @@ export default function DateRangePicker({
                   <Button
                     variant="default"
                     size="sm"
-                    className="h-7 px-3 text-xs"
+                    className="h-7 px-3 text-xs flex-shrink-0"
                     onClick={handleConfirm}
                   >
                     确认
