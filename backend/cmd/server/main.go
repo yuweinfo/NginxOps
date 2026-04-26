@@ -86,6 +86,7 @@ func startMainServer() {
 	certHandler := handler.NewCertificateHandler()
 	nginxHandler := handler.NewNginxHandler()
 	statsHandler := handler.NewStatsHandler()
+	metricsHandler := handler.NewMetricsHandler()
 	auditHandler := handler.NewAuditHandler()
 	dnsHandler := handler.NewDnsProviderHandler()
 	geoHandler := handler.NewGeoIpHandler()
@@ -194,6 +195,19 @@ func startMainServer() {
 		{
 			stats.GET("/dashboard", statsHandler.GetDashboard)
 			stats.GET("/logs", statsHandler.QueryLogs)
+		}
+
+		metrics := protected.Group("/metrics")
+		{
+			metrics.GET("/overview", metricsHandler.GetOverview)
+			metrics.GET("/traffic", metricsHandler.GetTrafficTrend)
+			metrics.GET("/response", metricsHandler.GetResponseTrend)
+			metrics.GET("/slow-requests", metricsHandler.GetSlowRequestTrend)
+			metrics.GET("/method-distribution", metricsHandler.GetMethodDistribution)
+			metrics.GET("/status-distribution", metricsHandler.GetStatusDistribution)
+			metrics.GET("/error-rate", metricsHandler.GetErrorRateTrend)
+			metrics.GET("/error-paths", metricsHandler.GetErrorPaths)
+			metrics.GET("/client", metricsHandler.GetClientAnalysis)
 		}
 
 		audit := protected.Group("/audit")

@@ -7,6 +7,7 @@ import (
 	"nginxops/internal/repository"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -40,6 +41,15 @@ type LogCollectorService struct {
 	// 小时趋势（内存聚合）
 	hourlyCounts   map[int64]*atomic.Int64 // timestamp(hour) -> count
 	hourlyCountsMu sync.RWMutex
+
+	// 时间窗口聚合（内存聚合）- 按分钟粒度存储
+	minuteWindowMu        sync.RWMutex
+	minuteRequests        map[int64]*atomic.Int64   // minute timestamp -> request count
+	minuteBytes           map[int64]*atomic.Int64   // minute timestamp -> bytes
+	minuteErrors          map[int64]*atomic.Int64   // minute timestamp -> error count (4xx+5xx)
+	minuteResponseTimes   map[int64][]float64       // minute timestamp -> response times list
+	minuteSlowRequests    map[int64]*atomic.Int64   // minute timestamp -> slow request count (RT>1s)
+	minuteMethodCounts    map[int64]map[string]*atomic.Int64 // minute timestamp -> method -> count
 
 	// IP 地理位置统计（内存聚合）
 	ipLocationCounts   map[string]*IpLocationStat // ip -> stat
@@ -128,6 +138,12 @@ func newLogCollector() *LogCollectorService {
 		bandwidthPerMin:    make([]atomic.Int64, 60),
 		statusCounts:       make(map[string]*atomic.Int64),
 		hourlyCounts:       make(map[int64]*atomic.Int64),
+		minuteRequests:     make(map[int64]*atomic.Int64),
+		minuteBytes:        make(map[int64]*atomic.Int64),
+		minuteErrors:       make(map[int64]*atomic.Int64),
+		minuteResponseTimes: make(map[int64][]float64),
+		minuteSlowRequests: make(map[int64]*atomic.Int64),
+		minuteMethodCounts: make(map[int64]map[string]*atomic.Int64),
 		ipLocationCounts:   make(map[string]*IpLocationStat),
 		regionCounts:       make(map[string]*atomic.Int64),
 		hostCounts:         make(map[string]*atomic.Int64),
@@ -282,6 +298,57 @@ func (s *LogCollectorService) aggregateStats(entry *model.AccessLog) {
 			s.qpsWindowMu.Unlock()
 		}
 	}
+
+	// 时间窗口聚合（按分钟）
+	minTs := entry.TimeLocal.Unix() / 60 * 60
+
+	s.minuteWindowMu.Lock()
+
+	if counter, ok := s.minuteRequests[minTs]; ok {
+		counter.Add(1)
+	} else {
+		s.minuteRequests[minTs] = &atomic.Int64{}
+		s.minuteRequests[minTs].Add(1)
+	}
+
+	if counter, ok := s.minuteBytes[minTs]; ok {
+		counter.Add(entry.BodyBytes)
+	} else {
+		s.minuteBytes[minTs] = &atomic.Int64{}
+		s.minuteBytes[minTs].Add(entry.BodyBytes)
+	}
+
+	if entry.Status >= 400 {
+		if counter, ok := s.minuteErrors[minTs]; ok {
+			counter.Add(1)
+		} else {
+			s.minuteErrors[minTs] = &atomic.Int64{}
+			s.minuteErrors[minTs].Add(1)
+		}
+	}
+
+	s.minuteResponseTimes[minTs] = append(s.minuteResponseTimes[minTs], entry.RT)
+
+	if entry.RT > 1.0 {
+		if counter, ok := s.minuteSlowRequests[minTs]; ok {
+			counter.Add(1)
+		} else {
+			s.minuteSlowRequests[minTs] = &atomic.Int64{}
+			s.minuteSlowRequests[minTs].Add(1)
+		}
+	}
+
+	if _, ok := s.minuteMethodCounts[minTs]; !ok {
+		s.minuteMethodCounts[minTs] = make(map[string]*atomic.Int64)
+	}
+	if counter, ok := s.minuteMethodCounts[minTs][entry.Method]; ok {
+		counter.Add(1)
+	} else {
+		s.minuteMethodCounts[minTs][entry.Method] = &atomic.Int64{}
+		s.minuteMethodCounts[minTs][entry.Method].Add(1)
+	}
+
+	s.minuteWindowMu.Unlock()
 
 	// IP 地理位置统计（异步查询）
 	go s.updateIPLocation(entry.RemoteAddr)
@@ -1155,9 +1222,301 @@ func (s *LogCollectorService) ResetDailyStats() {
 	s.userAgentCounts = make(map[string]*atomic.Int64)
 	s.userAgentCountsMu.Unlock()
 
+	s.minuteWindowMu.Lock()
+	s.minuteRequests = make(map[int64]*atomic.Int64)
+	s.minuteBytes = make(map[int64]*atomic.Int64)
+	s.minuteErrors = make(map[int64]*atomic.Int64)
+	s.minuteResponseTimes = make(map[int64][]float64)
+	s.minuteSlowRequests = make(map[int64]*atomic.Int64)
+	s.minuteMethodCounts = make(map[int64]map[string]*atomic.Int64)
+	s.minuteWindowMu.Unlock()
+
 	s.regionCountsMu.Lock()
 	s.regionCounts = make(map[string]*atomic.Int64)
 	s.regionCountsMu.Unlock()
+}
+
+// GetTrafficTrend 获取流量趋势（按时间窗口聚合）
+func (s *LogCollectorService) GetTrafficTrend(start, end time.Time, windowSeconds int64) []map[string]interface{} {
+	s.minuteWindowMu.RLock()
+	defer s.minuteWindowMu.RUnlock()
+
+	buckets := make(map[int64]struct {
+		requests int64
+		bytes    int64
+	})
+
+	for minTs, reqCounter := range s.minuteRequests {
+		minTime := time.Unix(minTs*60, 0)
+		if minTime.Before(start) || minTime.After(end) {
+			continue
+		}
+		bucketKey := minTs / (windowSeconds / 60) * (windowSeconds / 60)
+		b := buckets[bucketKey]
+		b.requests += reqCounter.Load()
+		if bytesCounter, ok := s.minuteBytes[minTs]; ok {
+			b.bytes += bytesCounter.Load()
+		}
+		buckets[bucketKey] = b
+	}
+
+	type bucketEntry struct {
+		timestamp int64
+		requests  int64
+		bytes     int64
+	}
+	entries := make([]bucketEntry, 0, len(buckets))
+	for ts, b := range buckets {
+		entries = append(entries, bucketEntry{timestamp: ts * (windowSeconds / 60) * 60, requests: b.requests, bytes: b.bytes})
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].timestamp < entries[j].timestamp })
+
+	result := make([]map[string]interface{}, 0, len(entries))
+	for _, e := range entries {
+		result = append(result, map[string]interface{}{
+			"time":     time.Unix(e.timestamp, 0).Format("2006-01-02 15:04:05"),
+			"requests": e.requests,
+			"bytes":    e.bytes,
+		})
+	}
+	return result
+}
+
+// GetResponseTimeTrend 获取响应时间趋势（P50/P90/P99）
+func (s *LogCollectorService) GetResponseTimeTrend(start, end time.Time, windowSeconds int64) []map[string]interface{} {
+	s.minuteWindowMu.RLock()
+	defer s.minuteWindowMu.RUnlock()
+
+	buckets := make(map[int64][]float64)
+	for minTs, rts := range s.minuteResponseTimes {
+		minTime := time.Unix(minTs*60, 0)
+		if minTime.Before(start) || minTime.After(end) {
+			continue
+		}
+		bucketKey := minTs / (windowSeconds / 60) * (windowSeconds / 60)
+		buckets[bucketKey] = append(buckets[bucketKey], rts...)
+	}
+
+	type bucketEntry struct {
+		timestamp int64
+		times     []float64
+	}
+	entries := make([]bucketEntry, 0, len(buckets))
+	for ts, times := range buckets {
+		entries = append(entries, bucketEntry{timestamp: ts * (windowSeconds / 60) * 60, times: times})
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].timestamp < entries[j].timestamp })
+
+	result := make([]map[string]interface{}, 0, len(entries))
+	for _, e := range entries {
+		sort.Float64s(e.times)
+		p50 := percentile(e.times, 50)
+		p90 := percentile(e.times, 90)
+		p99 := percentile(e.times, 99)
+		result = append(result, map[string]interface{}{
+			"time": time.Unix(e.timestamp, 0).Format("2006-01-02 15:04:05"),
+			"p50":  p50,
+			"p90":  p90,
+			"p99":  p99,
+		})
+	}
+	return result
+}
+
+// GetSlowRequestTrend 获取慢请求趋势
+func (s *LogCollectorService) GetSlowRequestTrend(start, end time.Time, windowSeconds int64) []map[string]interface{} {
+	s.minuteWindowMu.RLock()
+	defer s.minuteWindowMu.RUnlock()
+
+	buckets := make(map[int64]int64)
+	for minTs, counter := range s.minuteSlowRequests {
+		minTime := time.Unix(minTs*60, 0)
+		if minTime.Before(start) || minTime.After(end) {
+			continue
+		}
+		bucketKey := minTs / (windowSeconds / 60) * (windowSeconds / 60)
+		buckets[bucketKey] += counter.Load()
+	}
+
+	type bucketEntry struct {
+		timestamp int64
+		count     int64
+	}
+	entries := make([]bucketEntry, 0, len(buckets))
+	for ts, count := range buckets {
+		entries = append(entries, bucketEntry{timestamp: ts * (windowSeconds / 60) * 60, count: count})
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].timestamp < entries[j].timestamp })
+
+	result := make([]map[string]interface{}, 0, len(entries))
+	for _, e := range entries {
+		result = append(result, map[string]interface{}{
+			"time":  time.Unix(e.timestamp, 0).Format("2006-01-02 15:04:05"),
+			"count": e.count,
+		})
+	}
+	return result
+}
+
+// GetErrorRateTrend 获取错误率趋势
+func (s *LogCollectorService) GetErrorRateTrend(start, end time.Time, windowSeconds int64) []map[string]interface{} {
+	s.minuteWindowMu.RLock()
+	defer s.minuteWindowMu.RUnlock()
+
+	buckets := make(map[int64]struct {
+		total  int64
+		errors int64
+	})
+
+	for minTs, reqCounter := range s.minuteRequests {
+		minTime := time.Unix(minTs*60, 0)
+		if minTime.Before(start) || minTime.After(end) {
+			continue
+		}
+		bucketKey := minTs / (windowSeconds / 60) * (windowSeconds / 60)
+		b := buckets[bucketKey]
+		b.total += reqCounter.Load()
+		if errCounter, ok := s.minuteErrors[minTs]; ok {
+			b.errors += errCounter.Load()
+		}
+		buckets[bucketKey] = b
+	}
+
+	type bucketEntry struct {
+		timestamp int64
+		total     int64
+		errors    int64
+	}
+	entries := make([]bucketEntry, 0, len(buckets))
+	for ts, b := range buckets {
+		entries = append(entries, bucketEntry{timestamp: ts * (windowSeconds / 60) * 60, total: b.total, errors: b.errors})
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].timestamp < entries[j].timestamp })
+
+	result := make([]map[string]interface{}, 0, len(entries))
+	for _, e := range entries {
+		errorRate := float64(0)
+		if e.total > 0 {
+			errorRate = float64(e.errors) / float64(e.total) * 100
+		}
+		result = append(result, map[string]interface{}{
+			"time":      time.Unix(e.timestamp, 0).Format("2006-01-02 15:04:05"),
+			"total":     e.total,
+			"errors":    e.errors,
+			"errorRate": errorRate,
+		})
+	}
+	return result
+}
+
+// GetMethodDistribution 获取请求方法分布
+func (s *LogCollectorService) GetMethodDistribution(start, end time.Time) []map[string]interface{} {
+	s.minuteWindowMu.RLock()
+	defer s.minuteWindowMu.RUnlock()
+
+	methodTotals := make(map[string]int64)
+	for minTs, methods := range s.minuteMethodCounts {
+		minTime := time.Unix(minTs*60, 0)
+		if minTime.Before(start) || minTime.After(end) {
+			continue
+		}
+		for method, counter := range methods {
+			methodTotals[method] += counter.Load()
+		}
+	}
+
+	var total int64
+	for _, count := range methodTotals {
+		total += count
+	}
+
+	result := make([]map[string]interface{}, 0, len(methodTotals))
+	for method, count := range methodTotals {
+		percent := float64(0)
+		if total > 0 {
+			percent = float64(count) / float64(total) * 100
+		}
+		result = append(result, map[string]interface{}{
+			"name":    method,
+			"count":   count,
+			"percent": percent,
+		})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i]["count"].(int64) > result[j]["count"].(int64)
+	})
+	return result
+}
+
+// GetPeakQPS 获取峰值 QPS
+func (s *LogCollectorService) GetPeakQPS() float64 {
+	s.minuteWindowMu.RLock()
+	defer s.minuteWindowMu.RUnlock()
+
+	var maxQPS float64
+	for _, counter := range s.minuteRequests {
+		qps := float64(counter.Load()) / 60.0
+		if qps > maxQPS {
+			maxQPS = qps
+		}
+	}
+	return maxQPS
+}
+
+// GetAvgResponseTime 获取平均响应时间
+func (s *LogCollectorService) GetAvgResponseTime(start, end time.Time) float64 {
+	s.minuteWindowMu.RLock()
+	defer s.minuteWindowMu.RUnlock()
+
+	var totalRT float64
+	var count int64
+	for minTs, rts := range s.minuteResponseTimes {
+		minTime := time.Unix(minTs*60, 0)
+		if minTime.Before(start) || minTime.After(end) {
+			continue
+		}
+		for _, rt := range rts {
+			totalRT += rt
+			count++
+		}
+	}
+	if count == 0 {
+		return 0
+	}
+	return totalRT / float64(count)
+}
+
+// GetTotalRequestsAndBytes 获取总请求数和总字节数
+func (s *LogCollectorService) GetTotalRequestsAndBytes(start, end time.Time) (int64, int64) {
+	s.minuteWindowMu.RLock()
+	defer s.minuteWindowMu.RUnlock()
+
+	var totalRequests, totalBytes int64
+	for minTs, reqCounter := range s.minuteRequests {
+		minTime := time.Unix(minTs*60, 0)
+		if minTime.Before(start) || minTime.After(end) {
+			continue
+		}
+		totalRequests += reqCounter.Load()
+		if bytesCounter, ok := s.minuteBytes[minTs]; ok {
+			totalBytes += bytesCounter.Load()
+		}
+	}
+	return totalRequests, totalBytes
+}
+
+func percentile(sorted []float64, p float64) float64 {
+	if len(sorted) == 0 {
+		return 0
+	}
+	idx := int(float64(len(sorted)-1) * p / 100)
+	if idx < 0 {
+		idx = 0
+	}
+	if idx >= len(sorted) {
+		idx = len(sorted) - 1
+	}
+	return sorted[idx]
 }
 
 // ========== 日志解析 ==========

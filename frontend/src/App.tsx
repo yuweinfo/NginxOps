@@ -6,6 +6,7 @@ import MainLayout from './views/MainLayout'
 import Login from './views/Login'
 import Welcome from './views/Welcome'
 import Dashboard from './views/Dashboard'
+import MetricsAnalysis from './views/MetricsAnalysis'
 import Sites from './views/Sites'
 import LoadBalancer from './views/LoadBalancer'
 import Certificates from './views/Certificates'
@@ -102,6 +103,7 @@ export default function App() {
           >
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
+            <Route path="metrics-analysis" element={<MetricsAnalysis />} />
             <Route path="sites" element={<Sites />} />
             <Route path="loadbalancer" element={<LoadBalancer />} />
             <Route path="certificates" element={<Certificates />} />

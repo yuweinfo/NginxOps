@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
+  BarChart3,
   Server,
   Network,
   Lock,
@@ -32,6 +33,7 @@ const menuGroups = [
     title: '概览',
     items: [
       { value: '/dashboard', label: '仪表盘', icon: LayoutDashboard },
+      { value: '/metrics-analysis', label: '指标分析', icon: BarChart3 },
     ],
   },
   {
