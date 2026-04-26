@@ -186,6 +186,7 @@ export default function DateRangePicker({
   const activePresetIndex = findPresetIndex(value, presets)
   const isCustom = activePresetIndex === -1 && value?.from !== undefined
 
+  const [localRange, setLocalRange] = React.useState<DateRange | undefined>(value)
   const [startTime, setStartTime] = React.useState({
     hours: value?.from?.getHours() ?? 0,
     minutes: value?.from?.getMinutes() ?? 0,
@@ -198,21 +199,24 @@ export default function DateRangePicker({
   })
 
   React.useEffect(() => {
-    if (value?.from) {
-      setStartTime({
-        hours: value.from.getHours(),
-        minutes: value.from.getMinutes(),
-        seconds: value.from.getSeconds(),
-      })
+    if (showCustom) {
+      setLocalRange(value)
+      if (value?.from) {
+        setStartTime({
+          hours: value.from.getHours(),
+          minutes: value.from.getMinutes(),
+          seconds: value.from.getSeconds(),
+        })
+      }
+      if (value?.to) {
+        setEndTime({
+          hours: value.to.getHours(),
+          minutes: value.to.getMinutes(),
+          seconds: value.to.getSeconds(),
+        })
+      }
     }
-    if (value?.to) {
-      setEndTime({
-        hours: value.to.getHours(),
-        minutes: value.to.getMinutes(),
-        seconds: value.to.getSeconds(),
-      })
-    }
-  }, [value?.from, value?.to])
+  }, [showCustom, value])
 
   const applyTimeToDate = React.useCallback((date: Date | undefined, time: { hours: number; minutes: number; seconds: number }): Date | undefined => {
     if (!date) return undefined
@@ -222,10 +226,10 @@ export default function DateRangePicker({
   }, [])
 
   const getCombinedRange = React.useCallback((): DateRange => {
-    const from = applyTimeToDate(value?.from, startTime)
-    const to = applyTimeToDate(value?.to, endTime)
+    const from = applyTimeToDate(localRange?.from, startTime)
+    const to = applyTimeToDate(localRange?.to, endTime)
     return { from, to }
-  }, [value?.from, value?.to, startTime, endTime, applyTimeToDate])
+  }, [localRange?.from, localRange?.to, startTime, endTime, applyTimeToDate])
 
   const handlePresetSelect = React.useCallback(
     (preset: PresetRange) => {
@@ -242,12 +246,12 @@ export default function DateRangePicker({
       if (range?.from) {
         const newFrom = applyTimeToDate(range.from, startTime)
         const newTo = range.to ? applyTimeToDate(range.to, endTime) : undefined
-        onChange?.({ from: newFrom, to: newTo })
+        setLocalRange({ from: newFrom, to: newTo })
       } else if (range === undefined) {
-        onChange?.({ from: undefined, to: undefined })
+        setLocalRange({ from: undefined, to: undefined })
       }
     },
-    [onChange, startTime, endTime, applyTimeToDate]
+    [startTime, endTime, applyTimeToDate]
   )
 
   const handleToggleCustom = React.useCallback(() => {
@@ -255,18 +259,13 @@ export default function DateRangePicker({
   }, [])
 
   const handleConfirm = React.useCallback(() => {
-    if (value?.from) {
+    if (localRange?.from) {
       const range = getCombinedRange()
       onChange?.(range)
       setShowCustom(false)
       setOpen(false)
     }
-  }, [value?.from, getCombinedRange, onChange])
-
-  const handleClear = React.useCallback(() => {
-    onChange?.({ from: undefined, to: undefined })
-    setShowCustom(false)
-  }, [onChange])
+  }, [localRange?.from, getCombinedRange, onChange])
 
   const handleOpenChange = React.useCallback((isOpen: boolean) => {
     setOpen(isOpen)
@@ -339,15 +338,6 @@ export default function DateRangePicker({
                 <p className="text-sm text-muted-foreground text-center">
                   已选择: {formatRangeLabel(value)}
                 </p>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleClear}
-                  >
-                    清除选择
-                  </Button>
-                </div>
               </div>
             )}
             {!value?.from && (
@@ -378,11 +368,11 @@ export default function DateRangePicker({
             <div className="p-0">
               <Calendar
                 mode="range"
-                selected={value}
+                selected={localRange}
                 onSelect={handleCalendarSelect}
                 locale={zhCN}
                 numberOfMonths={2}
-                defaultMonth={value?.from}
+                defaultMonth={localRange?.from}
               />
             </div>
             <div className="px-3 pb-3 space-y-2 border-t border-border pt-3">
@@ -404,7 +394,7 @@ export default function DateRangePicker({
                 onSecondsChange={(s) => setEndTime((prev) => ({ ...prev, seconds: s }))}
                 label="结束"
               />
-              {value?.from && (
+              {localRange?.from && (
                 <div className="flex items-center justify-between gap-2 pt-1">
                   <span className="text-xs text-muted-foreground truncate">
                     {formatRangeLabel(getCombinedRange())}
@@ -419,7 +409,7 @@ export default function DateRangePicker({
                   </Button>
                 </div>
               )}
-              {!value?.from && (
+              {!localRange?.from && (
                 <div className="text-center text-xs text-muted-foreground py-2">
                   请在上方日历中选择日期范围
                 </div>
