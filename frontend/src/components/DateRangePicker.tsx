@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
-import { CalendarIcon, ChevronDownIcon, Clock } from 'lucide-react'
+import { CalendarIcon, ChevronDownIcon } from 'lucide-react'
 import { DateRange } from 'react-day-picker'
 
 import { cn } from '@/lib/utils'
@@ -181,7 +181,6 @@ export default function DateRangePicker({
   loading = false,
 }: DateRangePickerProps) {
   const [open, setOpen] = React.useState(false)
-  const [showCustom, setShowCustom] = React.useState(false)
 
   const activePresetIndex = findPresetIndex(value, presets)
   const isCustom = activePresetIndex === -1 && value?.from !== undefined
@@ -199,7 +198,7 @@ export default function DateRangePicker({
   })
 
   React.useEffect(() => {
-    if (showCustom) {
+    if (open) {
       setLocalRange(value)
       if (value?.from) {
         setStartTime({
@@ -216,7 +215,7 @@ export default function DateRangePicker({
         })
       }
     }
-  }, [showCustom, value])
+  }, [open, value])
 
   const applyTimeToDate = React.useCallback((date: Date | undefined, time: { hours: number; minutes: number; seconds: number }): Date | undefined => {
     if (!date) return undefined
@@ -235,7 +234,6 @@ export default function DateRangePicker({
     (preset: PresetRange) => {
       const range = preset.getDateRange()
       onChange?.(range)
-      setShowCustom(false)
       setOpen(false)
     },
     [onChange]
@@ -254,28 +252,16 @@ export default function DateRangePicker({
     [startTime, endTime, applyTimeToDate]
   )
 
-  const handleToggleCustom = React.useCallback(() => {
-    setShowCustom((prev) => !prev)
-  }, [])
-
   const handleConfirm = React.useCallback(() => {
     if (localRange?.from) {
       const range = getCombinedRange()
       onChange?.(range)
-      setShowCustom(false)
       setOpen(false)
     }
   }, [localRange?.from, getCombinedRange, onChange])
 
-  const handleOpenChange = React.useCallback((isOpen: boolean) => {
-    setOpen(isOpen)
-    if (!isOpen) {
-      setShowCustom(false)
-    }
-  }, [])
-
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
+    <Popover open={open} onOpenChange={setOpen} modal={false}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -296,85 +282,40 @@ export default function DateRangePicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-auto p-0"
+        className="w-auto p-0 mx-4"
         align="start"
         sideOffset={8}
+        avoidCollisions={false}
       >
-        {!showCustom ? (
-          <div className="flex flex-col md:flex-row">
-            <div className="flex flex-row md:flex-col gap-1 p-2 border-b md:border-b-0 md:border-r border-border min-w-[120px]">
-              {presets.map((preset, index) => {
-                const isActive = index === activePresetIndex
-                return (
-                  <Button
-                    key={preset.label}
-                    variant={isActive ? 'secondary' : 'ghost'}
-                    size="sm"
-                    className={cn(
-                      'justify-start text-sm px-3 py-1.5 h-auto whitespace-normal break-all',
-                      isActive && 'font-medium'
-                    )}
-                    onClick={() => handlePresetSelect(preset)}
-                  >
-                    {preset.label}
-                  </Button>
-                )
-              })}
-              <Button
-                variant={isCustom ? 'secondary' : 'ghost'}
-                size="sm"
-                className={cn(
-                  'justify-start text-sm px-3 py-1.5 h-auto',
-                  isCustom && 'font-medium'
-                )}
-                onClick={handleToggleCustom}
-              >
-                自定义
-              </Button>
-            </div>
-            {value?.from && (
-              <div className="p-3 flex flex-col items-center justify-center min-h-[200px] md:min-h-[300px] gap-3">
-                <Clock className="h-8 w-8 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground text-center">
-                  已选择: {formatRangeLabel(value)}
-                </p>
-              </div>
-            )}
-            {!value?.from && (
-              <div className="p-3 flex items-center justify-center min-h-[200px] md:min-h-[300px]">
-                <div className="text-center space-y-2">
-                  <CalendarIcon className="h-8 w-8 mx-auto text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">
-                    请选择一个预设时间范围
-                    <br />
-                    或点击"自定义"选择具体时间
-                  </p>
-                </div>
-              </div>
-            )}
+        <div className="flex flex-col md:flex-row">
+          <div className="flex flex-row md:flex-col gap-1 p-2 border-b md:border-b-0 md:border-r border-border min-w-[120px] max-w-[160px]">
+            {presets.map((preset, index) => {
+              const isActive = index === activePresetIndex
+              return (
+                <Button
+                  key={preset.label}
+                  variant={isActive ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className={cn(
+                    'justify-start text-sm px-3 py-1.5 h-auto whitespace-normal break-all',
+                    isActive && 'font-medium'
+                  )}
+                  onClick={() => handlePresetSelect(preset)}
+                >
+                  {preset.label}
+                </Button>
+              )
+            })}
           </div>
-        ) : (
-          <div className="flex flex-col">
-            <div className="p-2 border-b border-border">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start text-sm px-2 py-1.5 h-auto"
-                onClick={handleToggleCustom}
-              >
-                ← 返回预设
-              </Button>
-            </div>
-            <div className="p-0">
-              <Calendar
-                mode="range"
-                selected={localRange}
-                onSelect={handleCalendarSelect}
-                locale={zhCN}
-                numberOfMonths={2}
-                defaultMonth={localRange?.from}
-              />
-            </div>
+          <div className="flex-1">
+            <Calendar
+              mode="range"
+              selected={localRange}
+              onSelect={handleCalendarSelect}
+              locale={zhCN}
+              numberOfMonths={2}
+              defaultMonth={localRange?.from}
+            />
             <div className="px-3 pb-3 space-y-2 border-t border-border pt-3">
               <TimePicker
                 hours={startTime.hours}
@@ -416,7 +357,7 @@ export default function DateRangePicker({
               )}
             </div>
           </div>
-        )}
+        </div>
       </PopoverContent>
     </Popover>
   )
