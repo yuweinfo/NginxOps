@@ -1180,6 +1180,9 @@ func (s *LogCollectorService) parseLine(line string) *model.AccessLog {
 	if strings.Contains(path, " ") {
 		path = strings.Split(path, " ")[0]
 	}
+	if idx := strings.Index(path, "?"); idx != -1 {
+		path = path[:idx]
+	}
 	if len(path) > 1024 {
 		path = path[:1024]
 	}

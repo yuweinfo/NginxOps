@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
-import { CalendarIcon, ChevronDownIcon } from 'lucide-react'
+import { CalendarIcon, ChevronDownIcon, Clock } from 'lucide-react'
 import { DateRange } from 'react-day-picker'
 
 import { cn } from '@/lib/utils'
@@ -89,12 +89,20 @@ const defaultPresets: PresetRange[] = [
   },
 ]
 
+const hours = Array.from({ length: 24 }, (_, i) => i)
+const minutes = Array.from({ length: 60 }, (_, i) => i)
+const seconds = Array.from({ length: 60 }, (_, i) => i)
+
+function padZero(n: number): string {
+  return n.toString().padStart(2, '0')
+}
+
 function formatRangeLabel(range: DateRange | undefined): string {
   if (!range?.from) return '选择时间范围'
   if (range.to) {
-    return `${format(range.from, 'yyyy-MM-dd HH:mm')} ~ ${format(range.to, 'yyyy-MM-dd HH:mm')}`
+    return `${format(range.from, 'yyyy-MM-dd HH:mm:ss')} ~ ${format(range.to, 'yyyy-MM-dd HH:mm:ss')}`
   }
-  return format(range.from, 'yyyy-MM-dd HH:mm')
+  return format(range.from, 'yyyy-MM-dd HH:mm:ss')
 }
 
 function isSameRange(a: DateRange | undefined, b: DateRange | undefined): boolean {
@@ -113,6 +121,58 @@ function findPresetIndex(range: DateRange | undefined, presets: PresetRange[]): 
   })
 }
 
+interface TimePickerProps {
+  hours: number
+  minutes: number
+  seconds: number
+  onHoursChange: (h: number) => void
+  onMinutesChange: (m: number) => void
+  onSecondsChange: (s: number) => void
+  label: string
+}
+
+function TimePicker({ hours: h, minutes: m, seconds: s, onHoursChange, onMinutesChange, onSecondsChange, label }: TimePickerProps) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-muted-foreground whitespace-nowrap">{label}</span>
+      <div className="flex items-center gap-1">
+        <select
+          value={h}
+          onChange={(e) => onHoursChange(Number(e.target.value))}
+          className="h-8 w-14 rounded-md border border-input bg-background px-1 text-xs text-center focus:outline-none focus:ring-2 focus:ring-ring"
+          aria-label={`${label}-小时`}
+        >
+          {hours.map((hour) => (
+            <option key={hour} value={hour}>{padZero(hour)}</option>
+          ))}
+        </select>
+        <span className="text-muted-foreground">:</span>
+        <select
+          value={m}
+          onChange={(e) => onMinutesChange(Number(e.target.value))}
+          className="h-8 w-14 rounded-md border border-input bg-background px-1 text-xs text-center focus:outline-none focus:ring-2 focus:ring-ring"
+          aria-label={`${label}-分钟`}
+        >
+          {minutes.map((minute) => (
+            <option key={minute} value={minute}>{padZero(minute)}</option>
+          ))}
+        </select>
+        <span className="text-muted-foreground">:</span>
+        <select
+          value={s}
+          onChange={(e) => onSecondsChange(Number(e.target.value))}
+          className="h-8 w-14 rounded-md border border-input bg-background px-1 text-xs text-center focus:outline-none focus:ring-2 focus:ring-ring"
+          aria-label={`${label}-秒`}
+        >
+          {seconds.map((second) => (
+            <option key={second} value={second}>{padZero(second)}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+  )
+}
+
 export default function DateRangePicker({
   value,
   onChange,
@@ -125,7 +185,41 @@ export default function DateRangePicker({
 
   const activePresetIndex = findPresetIndex(value, presets)
   const isCustom = activePresetIndex === -1 && value?.from !== undefined
-  const isDefault = activePresetIndex === -1 && !value?.from
+
+  const [startTime, setStartTime] = React.useState({
+    hours: value?.from?.getHours() ?? 0,
+    minutes: value?.from?.getMinutes() ?? 0,
+    seconds: value?.from?.getSeconds() ?? 0,
+  })
+  const [endTime, setEndTime] = React.useState({
+    hours: value?.to?.getHours() ?? 23,
+    minutes: value?.to?.getMinutes() ?? 59,
+    seconds: value?.to?.getSeconds() ?? 59,
+  })
+
+  React.useEffect(() => {
+    if (value?.from) {
+      setStartTime({
+        hours: value.from.getHours(),
+        minutes: value.from.getMinutes(),
+        seconds: value.from.getSeconds(),
+      })
+    }
+    if (value?.to) {
+      setEndTime({
+        hours: value.to.getHours(),
+        minutes: value.to.getMinutes(),
+        seconds: value.to.getSeconds(),
+      })
+    }
+  }, [value?.from, value?.to])
+
+  const applyTimeToDate = React.useCallback((date: Date | undefined, time: { hours: number; minutes: number; seconds: number }): Date | undefined => {
+    if (!date) return undefined
+    const newDate = new Date(date)
+    newDate.setHours(time.hours, time.minutes, time.seconds, 0)
+    return newDate
+  }, [])
 
   const handlePresetSelect = React.useCallback(
     (preset: PresetRange) => {
@@ -137,26 +231,47 @@ export default function DateRangePicker({
     [onChange]
   )
 
-  const handleCustomSelect = React.useCallback(
+  const handleCalendarSelect = React.useCallback(
     (range: DateRange | undefined) => {
       if (range?.from) {
-        onChange?.(range)
+        const newFrom = applyTimeToDate(range.from, startTime) ?? range.from
+        const newTo = range.to ? (applyTimeToDate(range.to, endTime) ?? range.to) : undefined
+        onChange?.({ from: newFrom, to: newTo })
+      } else if (range === undefined) {
+        onChange?.({ from: undefined, to: undefined })
       }
     },
-    [onChange]
+    [onChange, startTime, endTime, applyTimeToDate]
   )
 
   const handleToggleCustom = React.useCallback(() => {
     setShowCustom((prev) => !prev)
   }, [])
 
+  const handleConfirm = React.useCallback(() => {
+    if (value?.from) {
+      const newFrom = applyTimeToDate(value.from, startTime)
+      const newTo = value?.to ? applyTimeToDate(value.to, endTime) : undefined
+      onChange?.({ from: newFrom, to: newTo })
+      setShowCustom(false)
+      setOpen(false)
+    }
+  }, [value?.from, value?.to, startTime, endTime, onChange, applyTimeToDate])
+
   const handleClear = React.useCallback(() => {
     onChange?.({ from: undefined, to: undefined })
     setShowCustom(false)
   }, [onChange])
 
+  const handleOpenChange = React.useCallback((isOpen: boolean) => {
+    setOpen(isOpen)
+    if (!isOpen) {
+      setShowCustom(false)
+    }
+  }, [])
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -214,17 +329,16 @@ export default function DateRangePicker({
               </Button>
             </div>
             {value?.from && (
-              <div className="p-3 flex items-center justify-center min-h-[200px] md:min-h-[300px]">
-                <div className="text-center space-y-2">
-                  <CalendarIcon className="h-8 w-8 mx-auto text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">
-                    已选择: {formatRangeLabel(value)}
-                  </p>
+              <div className="p-3 flex flex-col items-center justify-center min-h-[200px] md:min-h-[300px] gap-3">
+                <Clock className="h-8 w-8 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground text-center">
+                  已选择: {formatRangeLabel(value)}
+                </p>
+                <div className="flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={handleClear}
-                    className="mt-2"
                   >
                     清除选择
                   </Button>
@@ -236,7 +350,9 @@ export default function DateRangePicker({
                 <div className="text-center space-y-2">
                   <CalendarIcon className="h-8 w-8 mx-auto text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">
-                    请选择一个预设时间范围<br />或点击"自定义"选择具体时间
+                    请选择一个预设时间范围
+                    <br />
+                    或点击"自定义"选择具体时间
                   </p>
                 </div>
               </div>
@@ -244,7 +360,7 @@ export default function DateRangePicker({
           </div>
         ) : (
           <div className="flex flex-col md:flex-row">
-            <div className="p-2 border-b md:border-b-0 md:border-r border-border">
+            <div className="p-2 border-b md:border-b-0 md:border-r border-border min-w-[120px]">
               <Button
                 variant="ghost"
                 size="sm"
@@ -254,35 +370,53 @@ export default function DateRangePicker({
                 ← 返回预设
               </Button>
             </div>
-            <div className="p-3">
-              <Calendar
-                mode="range"
-                selected={value}
-                onSelect={handleCustomSelect}
-                locale={zhCN}
-                numberOfMonths={1}
-                defaultMonth={value?.from}
-                className="rounded-md"
-              />
-              {value?.from && (
-                <div className="mt-3 flex items-center justify-between gap-2">
-                  <span className="text-xs text-muted-foreground truncate">
-                    {formatRangeLabel(value)}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => {
-                      onChange?.(value)
-                      setShowCustom(false)
-                      setOpen(false)
-                    }}
-                  >
-                    确认
-                  </Button>
-                </div>
-              )}
+            <div className="flex flex-col">
+              <div className="p-3">
+                <Calendar
+                  mode="range"
+                  selected={value}
+                  onSelect={handleCalendarSelect}
+                  locale={zhCN}
+                  numberOfMonths={1}
+                  defaultMonth={value?.from}
+                  className="rounded-md"
+                />
+              </div>
+              <div className="px-3 pb-3 space-y-2 border-t border-border pt-2">
+                <TimePicker
+                  hours={startTime.hours}
+                  minutes={startTime.minutes}
+                  seconds={startTime.seconds}
+                  onHoursChange={(h) => setStartTime((prev) => ({ ...prev, hours: h }))}
+                  onMinutesChange={(m) => setStartTime((prev) => ({ ...prev, minutes: m }))}
+                  onSecondsChange={(s) => setStartTime((prev) => ({ ...prev, seconds: s }))}
+                  label="开始"
+                />
+                <TimePicker
+                  hours={endTime.hours}
+                  minutes={endTime.minutes}
+                  seconds={endTime.seconds}
+                  onHoursChange={(h) => setEndTime((prev) => ({ ...prev, hours: h }))}
+                  onMinutesChange={(m) => setEndTime((prev) => ({ ...prev, minutes: m }))}
+                  onSecondsChange={(s) => setEndTime((prev) => ({ ...prev, seconds: s }))}
+                  label="结束"
+                />
+                {value?.from && (
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <span className="text-xs text-muted-foreground truncate">
+                      {formatRangeLabel(value)}
+                    </span>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="h-7 px-3 text-xs"
+                      onClick={handleConfirm}
+                    >
+                      确认
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
