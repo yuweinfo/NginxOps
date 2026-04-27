@@ -505,8 +505,8 @@ export default function LoadBalancer() {
                             key={idx}
                             className={`w-2.5 h-2.5 rounded-full ${
                               server.status === 'up'
-                                ? server.backup ? 'bg-blue-400' : 'bg-green-400'
-                                : 'bg-red-400'
+                                ? server.backup ? 'bg-muted-foreground/60' : 'bg-foreground'
+                                : 'bg-destructive/60'
                             }`}
                             title={`${server.host}:${server.port} - ${server.status}${server.backup ? ' (备用)' : ''}`}
                           />
@@ -527,7 +527,7 @@ export default function LoadBalancer() {
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                           {healthResults[upstream.id!].map((result, idx) => (
                             <div key={idx} className="flex items-center gap-2 p-2 bg-background rounded-lg text-xs">
-                              <div className={`w-2 h-2 rounded-full ${result.healthy ? 'bg-green-500' : 'bg-red-500'}`} />
+                              <div className={`w-2 h-2 rounded-full ${result.healthy ? 'bg-foreground' : 'bg-muted-foreground/40'}`} />
                               <div className="flex-1 min-w-0">
                                 <div className="font-mono truncate">{result.serverHost}:{result.serverPort}</div>
                                 <div className="text-muted-foreground">
@@ -669,7 +669,7 @@ export default function LoadBalancer() {
                 <div key={server.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-xl border">
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${server.status === 'up' ? 'bg-green-500' : 'bg-red-500'}`} />
+                      <div className={`w-2 h-2 rounded-full ${server.status === 'up' ? 'bg-foreground' : 'bg-muted-foreground/40'}`} />
                       <code className="font-mono text-sm font-medium">{server.host}:{server.port}</code>
                     </div>
                     {viewingUpstream.lbMode === 'weight' && (
@@ -687,7 +687,7 @@ export default function LoadBalancer() {
                       variant="ghost" 
                       size="sm" 
                       onClick={() => toggleServerStatus(server.id!)}
-                      className={server.status === 'up' ? 'text-orange-600' : 'text-green-600'}
+                      className={server.status === 'up' ? 'text-muted-foreground' : 'text-foreground'}
                     >
                       {server.status === 'up' ? '下线' : '上线'}
                     </Button>
@@ -695,7 +695,7 @@ export default function LoadBalancer() {
                       variant="ghost" 
                       size="sm" 
                       onClick={() => toggleServerBackup(server.id!)}
-                      className={server.backup ? 'text-blue-600' : ''}
+                      className={server.backup ? 'text-muted-foreground' : ''}
                     >
                       {server.backup ? '取消备用' : '设为备用'}
                     </Button>

@@ -9,8 +9,8 @@ import { useToast } from '@/hooks/use-toast'
 import { statsApi, LogEntry } from '@/api/stats'
 
 const methodColor = (m: string) => {
-  const map: Record<string, string> = { GET: '#3b82f6', POST: '#22c55e', PUT: '#f59e0b', DELETE: '#ef4444', PATCH: '#ec4899', HEAD: '#6b7280' }
-  return map[m] || '#6b7280'
+  const map: Record<string, string> = { GET: '#0a0a0a', POST: '#404040', PUT: '#737373', DELETE: '#a3a3a3', PATCH: '#d4d4d4', HEAD: '#525252' }
+  return map[m] || '#737373'
 }
 
 const statusVariant = (s: number) => {

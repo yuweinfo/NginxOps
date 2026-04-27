@@ -193,7 +193,7 @@ export default function DnsProviderDialog({ open, onOpenChange, onRefresh }: Dns
                         {provider.providerType === 'aliyun' ? '阿里云' : provider.providerType === 'tencent' ? '腾讯云' : 'Cloudflare'}
                       </Badge>
                       {provider.isDefault && (
-                        <Badge variant="outline" className="text-yellow-600 border-yellow-500">
+                        <Badge variant="outline" className="text-muted-foreground border-border">
                           <Star className="h-3 w-3 mr-1" />默认
                         </Badge>
                       )}

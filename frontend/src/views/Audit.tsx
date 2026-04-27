@@ -291,7 +291,7 @@ export default function Audit() {
                       </td>
                       <td className="px-4 py-3">
                         {log.status === 'SUCCESS' ? (
-                          <div className="flex items-center gap-1 text-emerald-600">
+                          <div className="flex items-center gap-1 text-foreground">
                             <CheckCircle className="h-4 w-4" />
                             <span className="text-sm">成功</span>
                           </div>
@@ -404,7 +404,7 @@ export default function Audit() {
                       onClick={() => handleCopy(formatJson(selectedLog.detail || '{}'))}
                     >
                       {copied ? (
-                        <Check className="h-3.5 w-3.5 text-emerald-600" />
+                        <Check className="h-3.5 w-3.5 text-foreground" />
                       ) : (
                         <Copy className="h-3.5 w-3.5" />
                       )}

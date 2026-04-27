@@ -180,8 +180,8 @@ export default function Profile() {
             className={cn(
               "flex items-center gap-2 p-4 rounded-lg text-sm",
               message.type === 'success'
-                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                : "bg-destructive/10 text-destructive"
+                ? "bg-muted/50 text-foreground"
+                : "bg-muted/30 text-muted-foreground"
             )}
           >
             {message.type === 'success' ? (

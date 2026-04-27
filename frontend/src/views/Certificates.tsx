@@ -307,7 +307,7 @@ export default function Certificates() {
                       </span>
                       {getStatusBadge(cert.status)}
                       {isExpiringSoon && cert.status === 'valid' && (
-                        <Badge variant="outline" className="gap-1 border-yellow-500 text-yellow-600">
+                        <Badge variant="outline" className="gap-1 border-foreground/30 text-muted-foreground">
                           <RefreshCw className="h-3 w-3" />即将到期 ({daysLeft}天)
                         </Badge>
                       )}

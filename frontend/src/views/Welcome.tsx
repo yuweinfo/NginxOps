@@ -233,7 +233,7 @@ export default function Welcome() {
       case 'dbConfig':
         return (
           <div className="space-y-4">
-            <div className="p-3 bg-blue-50 rounded-lg border border-blue-100 text-sm text-blue-700">
+            <div className="p-3 bg-muted/50 rounded-lg border border-border text-sm text-foreground">
               请配置 PostgreSQL 数据库连接信息
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -302,7 +302,7 @@ export default function Welcome() {
             
             {dbTestResult && (
               <div className={`p-3 rounded-lg text-sm flex items-center gap-2 ${
-                dbTestResult.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
+                dbTestResult.success ? 'bg-muted text-foreground border border-border' : 'bg-muted/50 text-muted-foreground border border-border'
               }`}>
                 {dbTestResult.success ? <Check className="w-4 h-4" /> : <span className="text-base">×</span>}
                 {dbTestResult.message}
@@ -335,20 +335,20 @@ export default function Welcome() {
               </div>
             </div>
 
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-              <p className="text-sm font-medium text-blue-800 mb-3">如何生成 JWT 密钥？</p>
+            <div className="p-4 bg-muted/50 rounded-lg border border-border">
+              <p className="text-sm font-medium text-foreground mb-3">如何生成 JWT 密钥？</p>
               <div className="space-y-2">
                 {Object.entries(jwtCommands).map(([key, { label, cmd }]) => (
                   <div 
                     key={key} 
                     className={`flex items-center gap-2 p-2.5 rounded-lg transition-colors ${
                       detectedOS === key 
-                        ? 'bg-blue-100 border-2 border-blue-400' 
-                        : 'bg-blue-50 border border-transparent'
+                        ? 'bg-muted border-2 border-foreground/30' 
+                        : 'bg-muted/30 border border-transparent'
                     }`}
                   >
                     <span className={`text-xs font-medium shrink-0 w-28 ${
-                      detectedOS === key ? 'text-blue-800' : 'text-blue-600'
+                      detectedOS === key ? 'text-foreground' : 'text-muted-foreground'
                     }`}>
                       {label}:
                     </span>
@@ -362,9 +362,9 @@ export default function Welcome() {
                       className="p-1.5 hover:bg-white/50 rounded transition-colors shrink-0"
                     >
                       {copiedCommand === key ? (
-                        <CheckCheck className="w-4 h-4 text-green-600" />
+                        <CheckCheck className="w-4 h-4 text-foreground" />
                       ) : (
-                        <Copy className={`w-4 h-4 ${detectedOS === key ? 'text-blue-600' : 'text-blue-400'}`} />
+                        <Copy className={`w-4 h-4 ${detectedOS === key ? 'text-foreground' : 'text-muted-foreground'}`} />
                       )}
                     </button>
                   </div>
@@ -419,8 +419,8 @@ export default function Welcome() {
       case 'complete':
         return (
           <div className="py-6 text-center space-y-4">
-            <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto">
-              <Check className="w-7 h-7 text-green-600" />
+            <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mx-auto">
+              <Check className="w-7 h-7 text-foreground" />
             </div>
             <div>
               <h3 className="text-lg font-semibold text-neutral-900">配置完成</h3>

@@ -314,7 +314,7 @@ export default function AccessControl() {
                       onClick={() => handleToggle(rule.id, !rule.enabled)}
                     >
                       {rule.enabled ? (
-                        <ToggleRight className="h-4 w-4 text-emerald-500" />
+                        <ToggleRight className="h-4 w-4 text-foreground" />
                       ) : (
                         <ToggleLeft className="h-4 w-4 text-muted-foreground" />
                       )}
@@ -579,7 +579,7 @@ function RuleDetail({ ruleId }: { ruleId: number }) {
       {ipAllowItems.length > 0 && (
         <div>
           <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-            <Shield className="h-4 w-4 text-emerald-500" /> IP 白名单
+            <Shield className="h-4 w-4 text-foreground" /> IP 白名单
           </h4>
           <div className="space-y-1">
             {ipAllowItems.map(item => (

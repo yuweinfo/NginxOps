@@ -589,7 +589,7 @@ export default function Sites() {
                         {!target && <span>-</span>}
                       </div>
                       {cert ? (
-                        <div className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
+                        <div className="flex items-center gap-1.5 text-sm text-foreground font-medium">
                           <Lock className="h-4 w-4" />
                           <span>{cert.issuer}</span>
                         </div>
@@ -800,7 +800,7 @@ export default function Sites() {
                                 <div className="text-sm font-medium text-foreground flex items-center gap-2">
                                   {dnsCreated ? (
                                     <>
-                                      <Check className="h-4 w-4 text-emerald-500" />
+                                      <Check className="h-4 w-4 text-foreground" />
                                       DNS解析已创建
                                     </>
                                   ) : (
@@ -829,8 +829,8 @@ export default function Sites() {
                               )}
                             </div>
                           ) : (selectedDnsProvider || serverIP) ? (
-                            <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
-                              <span className="text-xs text-amber-600 dark:text-amber-400">
+                            <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg border border-border">
+                              <span className="text-xs text-muted-foreground">
                                 请同时填写服务器IP和选择DNS供应商以启用自动DNS解析
                               </span>
                             </div>
@@ -1191,12 +1191,12 @@ export default function Sites() {
                     <div>访问控制: {(wizardData.accessRuleIds || []).length > 0
                       ? `${(wizardData.accessRuleIds || []).length} 条规则`
                       : '未配置'}</div>
-                    {wizardData.gzip && <div className="text-emerald-500">✓ Gzip</div>}
-                    {wizardData.cache && <div className="text-emerald-500">✓ 缓存</div>}
+                    {wizardData.gzip && <div className="text-foreground">✓ Gzip</div>}
+                    {wizardData.cache && <div className="text-foreground">✓ 缓存</div>}
                   </div>
                   <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
                     <span className="px-3 py-1 bg-muted rounded-full">{wizardData.domain}</span>
-                    {wizardData.certId && <Badge variant="secondary" className="text-emerald-500">HTTPS</Badge>}
+                    {wizardData.certId && <Badge variant="secondary">HTTPS</Badge>}
                     {(wizardData.accessRuleIds || []).length > 0 && (
                       <Badge variant="outline" className="text-primary">{(wizardData.accessRuleIds || []).length} 条访问规则</Badge>
                     )}

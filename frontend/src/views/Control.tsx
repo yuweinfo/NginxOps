@@ -147,11 +147,11 @@ export default function Control() {
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <StatCard icon={Globe} label="活跃连接" value={status.activeConnections} />
-            <StatCard icon={Activity} label="总请求数" value={status.requests} color="text-green-500" />
-            <StatCard icon={ArrowUp} label="Reading" value={status.reading} color="text-blue-500" />
-            <StatCard icon={ArrowDown} label="Writing" value={status.writing} color="text-orange-500" />
-            <StatCard icon={Clock} label="Waiting" value={status.waiting} color="text-gray-500" />
-            <StatCard icon={Server} label="Worker 进程" value={status.workerProcesses} color="text-red-500" />
+            <StatCard icon={Activity} label="总请求数" value={status.requests} color="text-foreground" />
+            <StatCard icon={ArrowUp} label="Reading" value={status.reading} color="text-muted-foreground" />
+            <StatCard icon={ArrowDown} label="Writing" value={status.writing} color="text-muted-foreground/70" />
+            <StatCard icon={Clock} label="Waiting" value={status.waiting} color="text-muted-foreground/50" />
+            <StatCard icon={Server} label="Worker 进程" value={status.workerProcesses} color="text-muted-foreground" />
           </div>
 
           <div className="mt-4 p-3 bg-muted rounded-lg text-sm text-muted-foreground">
@@ -170,7 +170,7 @@ export default function Control() {
               return (
                 <Card key={btn.key} className="cursor-pointer hover:border-primary transition-colors" onClick={() => btn.key === 'start' ? handleStart() : handleConfirmOpen(btn.key)}>
                   <CardContent className="p-6 text-center">
-                    <Icon className={`h-10 w-10 mx-auto mb-3 ${btn.key === 'stop' ? 'text-destructive' : btn.key === 'restart' ? 'text-orange-500' : 'text-primary'}`} />
+                    <Icon className={`h-10 w-10 mx-auto mb-3 ${btn.key === 'stop' ? 'text-destructive' : btn.key === 'restart' ? 'text-muted-foreground' : 'text-primary'}`} />
                     <div className="font-semibold mb-1">{btn.label}</div>
                     <div className="text-sm text-muted-foreground">{btn.desc}</div>
                   </CardContent>
