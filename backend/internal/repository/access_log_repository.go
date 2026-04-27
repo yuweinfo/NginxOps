@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"nginxops/internal/database"
 	"nginxops/internal/model"
 	"time"
@@ -152,4 +153,128 @@ func BatchCreateAccessLogs(logs []*model.AccessLog) error {
 		return nil
 	}
 	return database.DB.CreateInBatches(logs, 100).Error
+}
+
+// TrafficTrendPoint 流量趋势数据点
+type TrafficTrendPoint struct {
+	Time     time.Time `json:"time"`
+	Requests int64     `json:"requests"`
+	Bytes    int64     `json:"bytes"`
+}
+
+// ResponseTrendPoint 响应时间趋势数据点
+type ResponseTrendPoint struct {
+	Time time.Time `json:"time"`
+	P50  float64   `json:"p50"`
+	P90  float64   `json:"p90"`
+	P99  float64   `json:"p99"`
+}
+
+// SlowRequestTrendPoint 慢请求趋势数据点
+type SlowRequestTrendPoint struct {
+	Time  time.Time `json:"time"`
+	Count int64     `json:"count"`
+}
+
+// ErrorRateTrendPoint 错误率趋势数据点
+type ErrorRateTrendPoint struct {
+	Time      time.Time `json:"time"`
+	Total     int64     `json:"total"`
+	Errors    int64     `json:"errors"`
+	ErrorRate float64   `json:"errorRate"`
+}
+
+func getTimeBucketExpr(windowSeconds int64) string {
+	switch windowSeconds {
+	case 60:
+		return "DATE_TRUNC('minute', time_local)"
+	case 300:
+		return "TO_TIMESTAMP(FLOOR(EXTRACT(EPOCH FROM time_local) / 300) * 300)"
+	case 3600:
+		return "DATE_TRUNC('hour', time_local)"
+	case 86400:
+		return "DATE_TRUNC('day', time_local)"
+	default:
+		return "TO_TIMESTAMP(FLOOR(EXTRACT(EPOCH FROM time_local) / " + fmt.Sprintf("%d", windowSeconds) + ") * " + fmt.Sprintf("%d", windowSeconds) + ")"
+	}
+}
+
+// GetTrafficTrend 获取流量趋势（从数据库）
+func (r *AccessLogRepository) GetTrafficTrend(start, end time.Time, windowSeconds int64) ([]TrafficTrendPoint, error) {
+	var results []TrafficTrendPoint
+	bucketExpr := getTimeBucketExpr(windowSeconds)
+	err := database.DB.Model(&model.AccessLog{}).
+		Select(fmt.Sprintf("%s as time, COUNT(*) as requests, COALESCE(SUM(body_bytes), 0) as bytes", bucketExpr)).
+		Where("time_local >= ? AND time_local <= ?", start, end).
+		Group("time").
+		Order("time").
+		Find(&results).Error
+	return results, err
+}
+
+// GetResponseTrend 获取响应时间趋势（P50/P90/P99，从数据库）
+func (r *AccessLogRepository) GetResponseTrend(start, end time.Time, windowSeconds int64) ([]ResponseTrendPoint, error) {
+	var results []ResponseTrendPoint
+	bucketExpr := getTimeBucketExpr(windowSeconds)
+	
+	err := database.DB.Model(&model.AccessLog{}).
+		Select(fmt.Sprintf("%s as time, "+
+			"PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY rt) as p50, "+
+			"PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY rt) as p90, "+
+			"PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY rt) as p99", bucketExpr)).
+		Where("time_local >= ? AND time_local <= ?", start, end).
+		Group("time").
+		Order("time").
+		Find(&results).Error
+	return results, err
+}
+
+// GetSlowRequestTrend 获取慢请求趋势（RT > 1s，从数据库）
+func (r *AccessLogRepository) GetSlowRequestTrend(start, end time.Time, windowSeconds int64) ([]SlowRequestTrendPoint, error) {
+	var results []SlowRequestTrendPoint
+	bucketExpr := getTimeBucketExpr(windowSeconds)
+	
+	err := database.DB.Model(&model.AccessLog{}).
+		Select(fmt.Sprintf("%s as time, COUNT(*) as count", bucketExpr)).
+		Where("time_local >= ? AND time_local <= ? AND rt > 1", start, end).
+		Group("time").
+		Order("time").
+		Find(&results).Error
+	return results, err
+}
+
+// GetErrorRateTrend 获取错误率趋势（从数据库）
+func (r *AccessLogRepository) GetErrorRateTrend(start, end time.Time, windowSeconds int64) ([]ErrorRateTrendPoint, error) {
+	type rawTrend struct {
+		Time   time.Time `gorm:"column:time"`
+		Total  int64
+		Errors int64
+	}
+	var rawResults []rawTrend
+	bucketExpr := getTimeBucketExpr(windowSeconds)
+	
+	err := database.DB.Model(&model.AccessLog{}).
+		Select(fmt.Sprintf("%s as time, COUNT(*) as total, COUNT(*) FILTER (WHERE status >= 400) as errors", bucketExpr)).
+		Where("time_local >= ? AND time_local <= ?", start, end).
+		Group("time").
+		Order("time").
+		Find(&rawResults).Error
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]ErrorRateTrendPoint, 0, len(rawResults))
+	for _, r := range rawResults {
+		errorRate := float64(0)
+		if r.Total > 0 {
+			errorRate = float64(r.Errors) / float64(r.Total) * 100
+		}
+		results = append(results, ErrorRateTrendPoint{
+			Time:      r.Time,
+			Total:     r.Total,
+			Errors:    r.Errors,
+			ErrorRate: errorRate,
+		})
+	}
+	return results, nil
 }

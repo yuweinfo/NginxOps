@@ -170,6 +170,22 @@ export default function MetricsAnalysis() {
 
   const colors = useThemeColors()
   const presetRef = useRef<HTMLDivElement>(null)
+  const [isDark, setIsDark] = useState(document.documentElement.classList.contains('dark'))
+
+  useEffect(() => {
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'class') {
+          setIsDark(document.documentElement.classList.contains('dark'))
+        }
+      })
+    })
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    })
+    return () => observer.disconnect()
+  }, [])
 
   const getApiParams = useCallback(() => {
     return {
@@ -265,10 +281,9 @@ export default function MetricsAnalysis() {
   const fg = colors.foreground || '#0a0a0a'
   const muted = colors.muted || '#e5e5e5'
   const border = colors.border || '#e5e5e5'
-  const isDark = document.documentElement.classList.contains('dark')
 
-  const lineColors = ['#171717', '#525252', '#a3a3a3', '#d4d4d4']
-  const pieColors = ['#171717', '#404040', '#737373', '#a3a3a3', '#d4d4d4', '#e5e5e5']
+  const lineColors = isDark ? ['#f5f5f5', '#a3a3a3', '#737373', '#525252'] : ['#171717', '#525252', '#a3a3a3', '#d4d4d4']
+  const pieColors = isDark ? ['#f5f5f5', '#d4d4d4', '#a3a3a3', '#737373', '#525252', '#404040'] : ['#171717', '#404040', '#737373', '#a3a3a3', '#d4d4d4', '#e5e5e5']
 
   const sparklineData = useMemo(() => {
     return {
@@ -320,7 +335,7 @@ export default function MetricsAnalysis() {
         label: { color: fg },
       },
     }],
-  }), [trafficTrend, colors, fg, muted, border, isDark])
+  }), [trafficTrend, colors, fg, muted, border, isDark, lineColors, pieColors])
 
   const bandwidthChartOption = useMemo(() => ({
     tooltip: {

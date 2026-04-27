@@ -24,7 +24,7 @@ func InitDB() error {
 	// 重试连接数据库，最多尝试 30 次，每次间隔 1 秒
 	for i := 0; i < 30; i++ {
 		DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
-			Logger: logger.Default.LogMode(logger.Info),
+			Logger: logger.Default.LogMode(logger.Warn),
 		})
 		if err == nil {
 			log.Println("Database connected successfully")

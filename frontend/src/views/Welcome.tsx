@@ -62,10 +62,10 @@ export default function Welcome() {
 
   if (checkingStatus) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-neutral-50">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto text-neutral-400" />
-          <p className="mt-4 text-sm text-neutral-500">检查系统状态...</p>
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" />
+          <p className="mt-4 text-sm text-muted-foreground">检查系统状态...</p>
         </div>
       </div>
     )
@@ -238,55 +238,55 @@ export default function Welcome() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1.5">主机地址</label>
+                <label className="block text-sm font-medium text-foreground mb-1.5">主机地址</label>
                 <input
                   type="text"
                   value={dbHost}
                   onChange={(e) => setDbHost(e.target.value)}
                   placeholder="数据库主机"
-                  className="w-full h-10 px-3 text-sm border border-neutral-200 rounded-lg focus:border-neutral-400 focus:ring-2 focus:ring-neutral-100 outline-none"
+                  className="w-full h-10 px-3 text-sm border border-border rounded-lg focus:border-ring focus:ring-2 focus:ring-ring/20 outline-none bg-background text-foreground placeholder:text-muted-foreground"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1.5">端口</label>
+                <label className="block text-sm font-medium text-foreground mb-1.5">端口</label>
                 <input
                   type="number"
                   value={dbPort}
                   onChange={(e) => setDbPort(e.target.value)}
                   placeholder="5432"
-                  className="w-full h-10 px-3 text-sm border border-neutral-200 rounded-lg focus:border-neutral-400 focus:ring-2 focus:ring-neutral-100 outline-none"
+                  className="w-full h-10 px-3 text-sm border border-border rounded-lg focus:border-ring focus:ring-2 focus:ring-ring/20 outline-none bg-background text-foreground placeholder:text-muted-foreground"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1.5">数据库名称</label>
+              <label className="block text-sm font-medium text-foreground mb-1.5">数据库名称</label>
               <input
                 type="text"
                 value={dbName}
                 onChange={(e) => setDbName(e.target.value)}
                 placeholder="nginxops"
-                className="w-full h-10 px-3 text-sm border border-neutral-200 rounded-lg focus:border-neutral-400 focus:ring-2 focus:ring-neutral-100 outline-none"
+                className="w-full h-10 px-3 text-sm border border-border rounded-lg focus:border-ring focus:ring-2 focus:ring-ring/20 outline-none bg-background text-foreground placeholder:text-muted-foreground"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1.5">用户名</label>
+                <label className="block text-sm font-medium text-foreground mb-1.5">用户名</label>
                 <input
                   type="text"
                   value={dbUser}
                   onChange={(e) => setDbUser(e.target.value)}
                   placeholder="用户名"
-                  className="w-full h-10 px-3 text-sm border border-neutral-200 rounded-lg focus:border-neutral-400 focus:ring-2 focus:ring-neutral-100 outline-none"
+                  className="w-full h-10 px-3 text-sm border border-border rounded-lg focus:border-ring focus:ring-2 focus:ring-ring/20 outline-none bg-background text-foreground placeholder:text-muted-foreground"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1.5">密码</label>
+                <label className="block text-sm font-medium text-foreground mb-1.5">密码</label>
                 <input
                   type="password"
                   value={dbPassword}
                   onChange={(e) => setDbPassword(e.target.value)}
                   placeholder="密码"
-                  className="w-full h-10 px-3 text-sm border border-neutral-200 rounded-lg focus:border-neutral-400 focus:ring-2 focus:ring-neutral-100 outline-none"
+                  className="w-full h-10 px-3 text-sm border border-border rounded-lg focus:border-ring focus:ring-2 focus:ring-ring/20 outline-none bg-background text-foreground placeholder:text-muted-foreground"
                 />
               </div>
             </div>
@@ -294,7 +294,7 @@ export default function Welcome() {
             <button
               onClick={testDBConnection}
               disabled={testingDB}
-              className="flex items-center justify-center gap-2 w-full h-10 text-sm font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors disabled:opacity-60"
+              className="flex items-center justify-center gap-2 w-full h-10 text-sm font-medium text-foreground bg-muted hover:bg-muted/80 rounded-lg transition-colors disabled:opacity-60"
             >
               {testingDB ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plug className="w-4 h-4" />}
               {testingDB ? '测试中...' : '测试连接'}
@@ -315,8 +315,8 @@ export default function Welcome() {
         return (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1.5">
-                JWT 密钥 <span className="text-neutral-400">(至少32个字符)</span>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                JWT 密钥 <span className="text-muted-foreground">(至少32个字符)</span>
               </label>
               <div className="flex gap-2">
                 <input
@@ -324,11 +324,11 @@ export default function Welcome() {
                   value={jwtSecret}
                   onChange={(e) => setJwtSecret(e.target.value)}
                   placeholder="请输入或生成 JWT 密钥"
-                  className="flex-1 h-10 px-3 text-sm border border-neutral-200 rounded-lg focus:border-neutral-400 focus:ring-2 focus:ring-neutral-100 outline-none font-mono"
+                  className="flex-1 h-10 px-3 text-sm border border-border rounded-lg focus:border-ring focus:ring-2 focus:ring-ring/20 outline-none bg-background text-foreground placeholder:text-muted-foreground font-mono"
                 />
                 <button
                   onClick={generateRandomSecret}
-                  className="px-4 h-10 text-sm font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors whitespace-nowrap"
+                  className="px-4 h-10 text-sm font-medium text-foreground bg-muted hover:bg-muted/80 rounded-lg transition-colors whitespace-nowrap"
                 >
                   随机生成
                 </button>
@@ -353,13 +353,13 @@ export default function Welcome() {
                       {label}:
                     </span>
                     <code className={`text-xs px-2 py-1 rounded font-mono flex-1 truncate ${
-                      detectedOS === key ? 'bg-white/80' : 'bg-white/50'
+                      detectedOS === key ? 'bg-background/80' : 'bg-background/50'
                     }`}>
                       {cmd}
                     </code>
                     <button
                       onClick={() => copyCommand(cmd, key)}
-                      className="p-1.5 hover:bg-white/50 rounded transition-colors shrink-0"
+                      className="p-1.5 hover:bg-background/50 rounded transition-colors shrink-0"
                     >
                       {copiedCommand === key ? (
                         <CheckCheck className="w-4 h-4 text-foreground" />

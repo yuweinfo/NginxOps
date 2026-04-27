@@ -32,28 +32,61 @@ func (s *MetricsService) GetOverview(start, end time.Time) map[string]interface{
 	}
 }
 
-// GetTrafficTrend 获取流量趋势数据
+// GetTrafficTrend 获取流量趋势数据（从数据库查询）
 func (s *MetricsService) GetTrafficTrend(start, end time.Time, granularity string) []map[string]interface{} {
-	collector := GetLogCollector()
-
 	windowSeconds := parseGranularity(granularity)
-	return collector.GetTrafficTrend(start, end, windowSeconds)
+	points, err := s.accessLogRepo.GetTrafficTrend(start, end, windowSeconds)
+	if err != nil {
+		return nil
+	}
+
+	result := make([]map[string]interface{}, 0, len(points))
+	for _, p := range points {
+		result = append(result, map[string]interface{}{
+			"time":     p.Time.Format("2006-01-02 15:04:05"),
+			"requests": p.Requests,
+			"bytes":    p.Bytes,
+		})
+	}
+	return result
 }
 
-// GetResponseTrend 获取响应时间趋势
+// GetResponseTrend 获取响应时间趋势（从数据库查询）
 func (s *MetricsService) GetResponseTrend(start, end time.Time, granularity string) []map[string]interface{} {
-	collector := GetLogCollector()
-
 	windowSeconds := parseGranularity(granularity)
-	return collector.GetResponseTimeTrend(start, end, windowSeconds)
+	points, err := s.accessLogRepo.GetResponseTrend(start, end, windowSeconds)
+	if err != nil {
+		return nil
+	}
+
+	result := make([]map[string]interface{}, 0, len(points))
+	for _, p := range points {
+		result = append(result, map[string]interface{}{
+			"time": p.Time.Format("2006-01-02 15:04:05"),
+			"p50":  p.P50,
+			"p90":  p.P90,
+			"p99":  p.P99,
+		})
+	}
+	return result
 }
 
-// GetSlowRequestTrend 获取慢请求趋势
+// GetSlowRequestTrend 获取慢请求趋势（从数据库查询）
 func (s *MetricsService) GetSlowRequestTrend(start, end time.Time, granularity string) []map[string]interface{} {
-	collector := GetLogCollector()
-
 	windowSeconds := parseGranularity(granularity)
-	return collector.GetSlowRequestTrend(start, end, windowSeconds)
+	points, err := s.accessLogRepo.GetSlowRequestTrend(start, end, windowSeconds)
+	if err != nil {
+		return nil
+	}
+
+	result := make([]map[string]interface{}, 0, len(points))
+	for _, p := range points {
+		result = append(result, map[string]interface{}{
+			"time":  p.Time.Format("2006-01-02 15:04:05"),
+			"count": p.Count,
+		})
+	}
+	return result
 }
 
 // GetMethodDistribution 获取请求方法分布
@@ -87,12 +120,24 @@ func (s *MetricsService) GetStatusDistribution(start, end time.Time) []map[strin
 	return result
 }
 
-// GetErrorRateTrend 获取错误率趋势
+// GetErrorRateTrend 获取错误率趋势（从数据库查询）
 func (s *MetricsService) GetErrorRateTrend(start, end time.Time, granularity string) []map[string]interface{} {
-	collector := GetLogCollector()
-
 	windowSeconds := parseGranularity(granularity)
-	return collector.GetErrorRateTrend(start, end, windowSeconds)
+	points, err := s.accessLogRepo.GetErrorRateTrend(start, end, windowSeconds)
+	if err != nil {
+		return nil
+	}
+
+	result := make([]map[string]interface{}, 0, len(points))
+	for _, p := range points {
+		result = append(result, map[string]interface{}{
+			"time":      p.Time.Format("2006-01-02 15:04:05"),
+			"total":     p.Total,
+			"errors":    p.Errors,
+			"errorRate": p.ErrorRate,
+		})
+	}
+	return result
 }
 
 // GetErrorPaths 获取错误路径 TOP
