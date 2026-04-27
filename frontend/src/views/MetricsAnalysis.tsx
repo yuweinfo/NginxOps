@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { DateRange } from 'react-day-picker'
+import * as echarts from 'echarts'
 import ReactECharts from 'echarts-for-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -301,7 +302,7 @@ export default function MetricsAnalysis() {
       type: 'line' as const,
       data: slowRequestTrend.map(d => d.count ?? 0),
       smooth: true,
-      areaStyle: { color: new (window as any).echarts.graphic.LinearGradient(0, 0, 0, 1, [
+      areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
         { offset: 0, color: 'rgba(239,68,68,0.3)' },
         { offset: 1, color: 'rgba(239,68,68,0.05)' },
       ]) },
@@ -385,7 +386,7 @@ export default function MetricsAnalysis() {
       smooth: true,
       lineStyle: { width: 2, color: '#ef4444' },
       itemStyle: { color: '#ef4444' },
-      areaStyle: { color: new (window as any).echarts.graphic.LinearGradient(0, 0, 0, 1, [
+      areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
         { offset: 0, color: 'rgba(239,68,68,0.3)' },
         { offset: 1, color: 'rgba(239,68,68,0.05)' },
       ]) },
