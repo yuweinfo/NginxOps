@@ -587,7 +587,7 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2 min-w-0">
         <RankingCard
           title="Host 排行"
           icon={<Globe className="h-4 w-4" />}
