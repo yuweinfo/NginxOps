@@ -67,10 +67,10 @@ function RankingCard({ title, icon, data, colors }: RankingCardProps) {
           {title}
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="overflow-x-hidden">
         <div className="space-y-2 max-h-[320px] overflow-y-auto custom-scrollbar">
           {displayData.map((item, index) => (
-            <div key={index} className="flex items-center gap-2 text-xs">
+            <div key={index} className="flex items-center gap-2 text-xs min-w-0">
               <span
                 className={cn(
                   'w-4 h-4 flex items-center justify-center rounded text-[10px] font-medium flex-shrink-0',
@@ -79,7 +79,7 @@ function RankingCard({ title, icon, data, colors }: RankingCardProps) {
               >
                 {index + 1}
               </span>
-              <span className="flex-1 truncate text-muted-foreground" title={item.name}>
+              <span className="flex-1 min-w-0 truncate text-muted-foreground" title={item.name}>
                 {item.name}
               </span>
               <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden flex-shrink-0">
