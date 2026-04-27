@@ -8,7 +8,7 @@ import { metricsApi, MetricsOverview, TrendPoint, DistributionItem, ErrorPathIte
 import { useThemeColors } from '@/hooks/useThemeColor'
 import DateRangePicker from '@/components/DateRangePicker'
 import { cn } from '@/lib/utils'
-import { Loader2, AlertCircle, TrendingUp, Activity, Zap, Clock, ChevronRight, Lightbulb, ArrowUpRight, ArrowDownRight, Minus, Search, Calendar } from 'lucide-react'
+import { Loader2, AlertCircle, TrendingUp, Activity, Zap, Clock, ChevronRight, Lightbulb, ArrowUpRight, ArrowDownRight, Minus, Calendar, BarChart3, AlertTriangle, Monitor, Hash } from 'lucide-react'
 
 type Granularity = '1m' | '5m' | '1h' | '1d'
 type TabKey = 'traffic' | 'response' | 'error' | 'client' | 'status'
@@ -20,12 +20,12 @@ const granularityOptions: { value: Granularity; label: string }[] = [
   { value: '1d', label: '1天' },
 ]
 
-const tabs: { key: TabKey; label: string; icon: string }[] = [
-  { key: 'traffic', label: '流量分析', icon: '📊' },
-  { key: 'response', label: '响应性能', icon: '⚡' },
-  { key: 'error', label: '错误分析', icon: '🐛' },
-  { key: 'client', label: '客户端', icon: '📱' },
-  { key: 'status', label: '状态码', icon: '🔢' },
+const tabs: { key: TabKey; label: string; icon: React.ElementType }[] = [
+  { key: 'traffic', label: '流量分析', icon: BarChart3 },
+  { key: 'response', label: '响应性能', icon: Zap },
+  { key: 'error', label: '错误分析', icon: AlertTriangle },
+  { key: 'client', label: '客户端', icon: Monitor },
+  { key: 'status', label: '状态码', icon: Hash },
 ]
 
 const timePresets: { label: string; range: () => DateRange }[] = [
@@ -859,7 +859,7 @@ export default function MetricsAnalysis() {
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               )}
             >
-              <span>{tab.icon}</span>
+              <tab.icon className="h-4 w-4" />
               <span>{tab.label}</span>
             </button>
           ))}
@@ -896,7 +896,7 @@ export default function MetricsAnalysis() {
                 onClick={() => handleTabChange(tabKey)}
                 className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-full border border-border hover:bg-muted transition-colors"
               >
-                <span>{tab.icon}</span>
+                <tab.icon className="h-3 w-3" />
                 <span>{tab.label}</span>
                 <ChevronRight className="h-3 w-3" />
               </button>
