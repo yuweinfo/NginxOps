@@ -29,6 +29,7 @@ main:
   push:
     - imports:
         - https://cnb.cool/yuweinfo/config/-/blob/main/env.github.yml
+        - https://cnb.cool/yuweinfo/config/-/blob/main/env.gitlab.yml
       services:
         - docker
       stages:
@@ -43,6 +44,16 @@ main:
             auth_type: https
             PLUGIN_GIT_USER: "余味"
             PLUGIN_GIT_EMAIL: "yuwei1228@hotmail.com"
-            username: ${GIT_USERNAME}
-            password: ${GIT_ACCESS_TOKEN}
+            username: ${GITHUB_USERNAME}
+            password: ${GITHUB_ACCESS_TOKEN}
+            sync_mode: rebase
+        - name: sync-to-github
+          image: tencentcom/git-sync
+          settings:
+            target_url: https://github.com/yuweinfo/NginxOps/NginxOps.git
+            auth_type: https
+            PLUGIN_GIT_USER: "余味"
+            PLUGIN_GIT_EMAIL: "yuwei1228@hotmail.com"
+            username: ${GITLAB_USERNAME}
+            password: ${GITLAB_ACCESS_TOKEN}
             sync_mode: rebase
