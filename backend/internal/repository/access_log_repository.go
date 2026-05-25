@@ -147,6 +147,129 @@ func (r *AccessLogRepository) SumBandwidth(start, end time.Time) (int64, error) 
 	return total, err
 }
 
+// RankItem 排名项
+type RankItem struct {
+	Name  string `json:"name"`
+	Count int64  `json:"count"`
+}
+
+// GetHostRank 获取 Host 排行（从数据库，按时间范围）
+func (r *AccessLogRepository) GetHostRank(start, end time.Time, limit int) ([]RankItem, error) {
+	var results []RankItem
+	err := database.DB.Model(&model.AccessLog{}).
+		Select("host as name, COUNT(*) as count").
+		Where("time_local >= ? AND time_local <= ? AND host != ''", start, end).
+		Group("host").
+		Order("count DESC").
+		Limit(limit).
+		Find(&results).Error
+	return results, err
+}
+
+// GetPathRank 获取 URL Path 排行（从数据库，按时间范围）
+func (r *AccessLogRepository) GetPathRank(start, end time.Time, limit int) ([]RankItem, error) {
+	var results []RankItem
+	err := database.DB.Model(&model.AccessLog{}).
+		Select("path as name, COUNT(*) as count").
+		Where("time_local >= ? AND time_local <= ?", start, end).
+		Group("path").
+		Order("count DESC").
+		Limit(limit).
+		Find(&results).Error
+	return results, err
+}
+
+// GetRefererRank 获取 Referer 排行（从数据库，按时间范围）
+func (r *AccessLogRepository) GetRefererRank(start, end time.Time, limit int) ([]RankItem, error) {
+	var results []RankItem
+	err := database.DB.Model(&model.AccessLog{}).
+		Select("referer as name, COUNT(*) as count").
+		Where("time_local >= ? AND time_local <= ? AND referer != ''", start, end).
+		Group("referer").
+		Order("count DESC").
+		Limit(limit).
+		Find(&results).Error
+	return results, err
+}
+
+// GetStatusRank 获取状态码排行（从数据库，按时间范围）
+func (r *AccessLogRepository) GetStatusRank(start, end time.Time, limit int) ([]RankItem, error) {
+	var results []RankItem
+	err := database.DB.Model(&model.AccessLog{}).
+		Select("CAST(status AS TEXT) as name, COUNT(*) as count").
+		Where("time_local >= ? AND time_local <= ?", start, end).
+		Group("status").
+		Order("count DESC").
+		Limit(limit).
+		Find(&results).Error
+	return results, err
+}
+
+// GetIPTopRank 获取 IP 访问排行（从数据库，按时间范围）
+func (r *AccessLogRepository) GetIPTopRank(start, end time.Time, limit int) ([]IpLocationCount, error) {
+	var results []IpLocationCount
+	err := database.DB.Table("access_log a").
+		Select("a.remote_addr as ip, g.country, g.region, g.city, g.lat, g.lon, COUNT(*) as requests").
+		Joins("LEFT JOIN ip_geo_cache g ON a.remote_addr = g.ip").
+		Where("a.time_local >= ? AND a.time_local <= ?", start, end).
+		Group("a.remote_addr, g.country, g.region, g.city, g.lat, g.lon").
+		Order("requests DESC").
+		Limit(limit).
+		Find(&results).Error
+	return results, err
+}
+
+// GetUserAgentRank 获取 User-Agent 排行（从数据库，按时间范围）
+func (r *AccessLogRepository) GetUserAgentRank(start, end time.Time, limit int) ([]RankItem, error) {
+	var results []RankItem
+	err := database.DB.Model(&model.AccessLog{}).
+		Select("user_agent as name, COUNT(*) as count").
+		Where("time_local >= ? AND time_local <= ? AND user_agent != ''", start, end).
+		Group("user_agent").
+		Order("count DESC").
+		Limit(limit).
+		Find(&results).Error
+	return results, err
+}
+
+// GetResourceTypeRank 获取资源类型排行（从数据库，按时间范围，按路径扩展名分类）
+func (r *AccessLogRepository) GetResourceTypeRank(start, end time.Time, limit int) ([]RankItem, error) {
+	var results []RankItem
+	// 使用 CASE WHEN 按路径扩展名分类
+	err := database.DB.Model(&model.AccessLog{}).
+		Select(`CASE 
+			WHEN path ~* '\.(css)$' THEN 'CSS'
+			WHEN path ~* '\.(js)$' THEN 'JavaScript'
+			WHEN path ~* '\.(jpg|jpeg|png|gif|webp|svg|ico)$' THEN 'Image'
+			WHEN path ~* '\.(mp4|avi|mov|wmv|flv|mkv)$' THEN 'Video'
+			WHEN path ~* '\.(mp3|wav|flac|aac|ogg)$' THEN 'Audio'
+			WHEN path ~* '\.(woff|woff2|ttf|eot|otf)$' THEN 'Font'
+			WHEN path ~* '\.(pdf)$' THEN 'PDF'
+			WHEN path ~* '\.(zip|tar|gz|rar|7z)$' THEN 'Archive'
+			WHEN path ~* '\.(doc|docx|xls|xlsx|ppt|pptx)$' THEN 'Document'
+			ELSE 'Other'
+		END as name, COUNT(*) as count`).
+		Where("time_local >= ? AND time_local <= ?", start, end).
+		Group("name").
+		Order("count DESC").
+		Limit(limit).
+		Find(&results).Error
+	return results, err
+}
+
+// FindErrorPaths 获取错误路径 TOP（从数据库，使用 SQL 直接过滤错误请求）
+func (r *AccessLogRepository) FindErrorPaths(start, end time.Time, limit int) ([]RankItem, error) {
+	var results []RankItem
+	err := database.DB.Model(&model.AccessLog{}).
+		Select("path as name, COUNT(*) as count").
+		Where("time_local >= ? AND time_local <= ? AND status >= 400", start, end).
+		Group("path").
+		Order("count DESC").
+		Limit(limit).
+		Find(&results).Error
+	return results, err
+}
+
 // BatchCreateAccessLogs 批量创建访问日志
 func BatchCreateAccessLogs(logs []*model.AccessLog) error {
 	if len(logs) == 0 {

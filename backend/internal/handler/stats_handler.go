@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"nginxops/internal/service"
 	"nginxops/pkg/response"
 	"strconv"
@@ -8,6 +9,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+const maxQueryRangeDays = 90
 
 type StatsHandler struct {
 	service *service.StatsService
@@ -20,7 +23,7 @@ func NewStatsHandler() *StatsHandler {
 }
 
 // GetDashboard 获取仪表盘数据
-// GET /api/stats/dashboard
+// GET /api/stats/dashboard?start=...&end=...
 func (h *StatsHandler) GetDashboard(c *gin.Context) {
 	startStr := c.Query("start")
 	endStr := c.Query("end")
@@ -33,12 +36,19 @@ func (h *StatsHandler) GetDashboard(c *gin.Context) {
 		end, _ = time.Parse(time.RFC3339, endStr)
 	}
 
+	// 校验和补全时间范围
+	start, end, err := service.ValidateDashboardRange(start, end)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
 	data := h.service.GetDashboard(start, end)
 	response.Success(c, data)
 }
 
 // QueryLogs 查询访问日志
-// GET /api/stats/logs
+// GET /api/stats/logs?start=...&end=...&ip=...&page=1&size=50
 func (h *StatsHandler) QueryLogs(c *gin.Context) {
 	startStr := c.Query("start")
 	endStr := c.Query("end")
@@ -52,6 +62,29 @@ func (h *StatsHandler) QueryLogs(c *gin.Context) {
 	}
 	if endStr != "" {
 		end, _ = time.Parse(time.RFC3339, endStr)
+	}
+
+	// 默认时间范围
+	if start.IsZero() {
+		end = time.Now()
+		start = end.Add(-24 * time.Hour)
+	}
+	if end.IsZero() {
+		end = time.Now()
+	}
+
+	// 校验最大查询范围
+	if end.Sub(start) > time.Duration(maxQueryRangeDays)*24*time.Hour {
+		response.BadRequest(c, fmt.Sprintf("查询时间范围不能超过 %d 天", maxQueryRangeDays))
+		return
+	}
+
+	// 限制分页大小
+	if page < 1 {
+		page = 1
+	}
+	if size < 1 || size > 200 {
+		size = 50
 	}
 
 	logs, total, err := h.service.QueryLogs(start, end, ip, page, size)

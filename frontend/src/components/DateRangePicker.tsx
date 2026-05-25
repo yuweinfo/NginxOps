@@ -13,6 +13,9 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 
+// 最大查询范围：90 天
+const MAX_RANGE_DAYS = 90
+
 export interface PresetRange {
   label: string
   getDateRange: () => DateRange
@@ -24,6 +27,7 @@ export interface DateRangePickerProps {
   presets?: PresetRange[]
   className?: string
   loading?: boolean
+  maxRangeDays?: number
 }
 
 const defaultPresets: PresetRange[] = [
@@ -179,8 +183,10 @@ export default function DateRangePicker({
   presets = defaultPresets,
   className,
   loading = false,
+  maxRangeDays = MAX_RANGE_DAYS,
 }: DateRangePickerProps) {
   const [open, setOpen] = React.useState(false)
+  const [rangeError, setRangeError] = React.useState<string | null>(null)
 
   const activePresetIndex = findPresetIndex(value, presets)
   const isCustom = activePresetIndex === -1 && value?.from !== undefined
@@ -241,6 +247,7 @@ export default function DateRangePicker({
 
   const handleCalendarSelect = React.useCallback(
     (range: DateRange | undefined) => {
+      setRangeError(null)
       if (range?.from) {
         const newFrom = applyTimeToDate(range.from, startTime)
         const newTo = range.to ? applyTimeToDate(range.to, endTime) : undefined
@@ -255,10 +262,24 @@ export default function DateRangePicker({
   const handleConfirm = React.useCallback(() => {
     if (localRange?.from) {
       const range = getCombinedRange()
+      // 校验时间范围
+      if (range.to && range.from) {
+        const diffMs = range.to.getTime() - range.from.getTime()
+        const maxMs = maxRangeDays * 24 * 60 * 60 * 1000
+        if (diffMs > maxMs) {
+          setRangeError(`查询时间范围不能超过 ${maxRangeDays} 天`)
+          return
+        }
+        if (diffMs < 0) {
+          setRangeError('结束时间不能早于开始时间')
+          return
+        }
+      }
+      setRangeError(null)
       onChange?.(range)
       setOpen(false)
     }
-  }, [localRange?.from, getCombinedRange, onChange])
+  }, [localRange?.from, getCombinedRange, onChange, maxRangeDays])
 
   return (
     <Popover open={open} onOpenChange={setOpen} modal={false}>
@@ -315,6 +336,7 @@ export default function DateRangePicker({
               locale={zhCN}
               numberOfMonths={2}
               defaultMonth={localRange?.from}
+              disabled={{ after: new Date() }}
             />
             <div className="px-3 pb-3 space-y-2 border-t border-border pt-3">
               <div className="flex flex-wrap gap-3">
@@ -350,6 +372,11 @@ export default function DateRangePicker({
                   >
                     确认
                   </Button>
+                </div>
+              )}
+              {rangeError && (
+                <div className="text-xs text-destructive pt-1">
+                  {rangeError}
                 </div>
               )}
               {!localRange?.from && (

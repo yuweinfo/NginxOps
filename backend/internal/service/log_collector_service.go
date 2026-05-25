@@ -509,7 +509,7 @@ func (s *LogCollectorService) getResourceType(path string) string {
 }
 
 func (s *LogCollectorService) incrementBrowser(ua string) {
-	browser := s.parseBrowser(ua)
+	browser := s.ParseBrowser(ua)
 	s.browserCountsMu.Lock()
 	defer s.browserCountsMu.Unlock()
 	if counter, ok := s.browserCounts[browser]; ok {
@@ -520,7 +520,7 @@ func (s *LogCollectorService) incrementBrowser(ua string) {
 	}
 }
 
-func (s *LogCollectorService) parseBrowser(ua string) string {
+func (s *LogCollectorService) ParseBrowser(ua string) string {
 	uaLower := strings.ToLower(ua)
 	switch {
 	case strings.Contains(uaLower, "edg/") || strings.Contains(uaLower, "edge/"):
@@ -539,7 +539,7 @@ func (s *LogCollectorService) parseBrowser(ua string) string {
 }
 
 func (s *LogCollectorService) incrementDeviceType(ua string) {
-	deviceType := s.parseDeviceType(ua)
+	deviceType := s.ParseDeviceType(ua)
 	s.deviceTypeCountsMu.Lock()
 	defer s.deviceTypeCountsMu.Unlock()
 	if counter, ok := s.deviceTypeCounts[deviceType]; ok {
@@ -550,7 +550,7 @@ func (s *LogCollectorService) incrementDeviceType(ua string) {
 	}
 }
 
-func (s *LogCollectorService) parseDeviceType(ua string) string {
+func (s *LogCollectorService) ParseDeviceType(ua string) string {
 	uaLower := strings.ToLower(ua)
 	if strings.Contains(uaLower, "mobile") || strings.Contains(uaLower, "android") ||
 		strings.Contains(uaLower, "iphone") || strings.Contains(uaLower, "ipad") {
@@ -560,7 +560,7 @@ func (s *LogCollectorService) parseDeviceType(ua string) string {
 }
 
 func (s *LogCollectorService) incrementOS(ua string) {
-	os := s.parseOS(ua)
+	os := s.ParseOS(ua)
 	s.osCountsMu.Lock()
 	defer s.osCountsMu.Unlock()
 	if counter, ok := s.osCounts[os]; ok {
@@ -571,7 +571,7 @@ func (s *LogCollectorService) incrementOS(ua string) {
 	}
 }
 
-func (s *LogCollectorService) parseOS(ua string) string {
+func (s *LogCollectorService) ParseOS(ua string) string {
 	uaLower := strings.ToLower(ua)
 	switch {
 	case strings.Contains(uaLower, "windows nt"):

@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const metricsRankLimit = 20
+
 type MetricsService struct {
 	accessLogRepo *repository.AccessLogRepository
 }
@@ -95,25 +97,27 @@ func (s *MetricsService) GetMethodDistribution(start, end time.Time) []map[strin
 	return collector.GetMethodDistribution(start, end)
 }
 
-// GetStatusDistribution 获取状态码分布
+// GetStatusDistribution 获取状态码分布（从数据库查询，支持时间范围）
 func (s *MetricsService) GetStatusDistribution(start, end time.Time) []map[string]interface{} {
-	collector := GetLogCollector()
-	statusRank := collector.GetStatusRank(50)
+	statusRank, err := s.accessLogRepo.GetStatusRank(start, end, 50)
+	if err != nil {
+		return nil
+	}
 
 	var total int64
 	for _, item := range statusRank {
-		total += item["count"].(int64)
+		total += item.Count
 	}
 
 	result := make([]map[string]interface{}, 0, len(statusRank))
 	for _, item := range statusRank {
 		percent := float64(0)
 		if total > 0 {
-			percent = float64(item["count"].(int64)) / float64(total) * 100
+			percent = float64(item.Count) / float64(total) * 100
 		}
 		result = append(result, map[string]interface{}{
-			"name":    item["name"],
-			"count":   item["count"],
+			"name":    item.Name,
+			"count":   item.Count,
 			"percent": percent,
 		})
 	}
@@ -140,63 +144,128 @@ func (s *MetricsService) GetErrorRateTrend(start, end time.Time, granularity str
 	return result
 }
 
-// GetErrorPaths 获取错误路径 TOP
+// GetErrorPaths 获取错误路径 TOP（从数据库查询，使用 SQL 过滤而非全量加载）
 func (s *MetricsService) GetErrorPaths(start, end time.Time, limit int) []map[string]interface{} {
-	logs, _, _ := s.accessLogRepo.FindPage(1, 10000, start, end, "")
+	// 使用数据库查询直接过滤错误请求，避免加载全量数据到内存
+	errorLogs, err := s.accessLogRepo.FindErrorPaths(start, end, limit)
+	if err != nil {
+		return nil
+	}
 
-	errorPaths := make(map[string]int64)
 	var totalErrors int64
-	for _, log := range logs {
-		if log.Status >= 400 {
-			errorPaths[log.Path]++
-			totalErrors++
-		}
+	for _, item := range errorLogs {
+		totalErrors += item.Count
 	}
 
-	type pathEntry struct {
-		path  string
-		count int64
-	}
-	entries := make([]pathEntry, 0, len(errorPaths))
-	for path, count := range errorPaths {
-		entries = append(entries, pathEntry{path: path, count: count})
-	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].count > entries[j].count })
-
-	if limit > len(entries) {
-		limit = len(entries)
-	}
-
-	result := make([]map[string]interface{}, 0, limit)
-	for i := 0; i < limit; i++ {
+	result := make([]map[string]interface{}, 0, len(errorLogs))
+	for _, item := range errorLogs {
 		percent := float64(0)
 		if totalErrors > 0 {
-			percent = float64(entries[i].count) / float64(totalErrors) * 100
+			percent = float64(item.Count) / float64(totalErrors) * 100
 		}
 		result = append(result, map[string]interface{}{
-			"path":    entries[i].path,
-			"count":   entries[i].count,
+			"path":    item.Name,
+			"count":   item.Count,
 			"percent": percent,
 		})
 	}
 	return result
 }
 
-// GetClientAnalysis 获取客户端分析数据
+// GetClientAnalysis 获取客户端分析数据（从数据库查询，支持时间范围）
 func (s *MetricsService) GetClientAnalysis(start, end time.Time) map[string]interface{} {
-	collector := GetLogCollector()
+	// 获取 user_agent 排行，在内存中解析分类
+	uaRanks, err := s.accessLogRepo.GetUserAgentRank(start, end, metricsRankLimit*5)
+	if err != nil {
+		uaRanks = nil
+	}
 
-	deviceTypeRank := collector.GetDeviceTypeRank(20)
-	browserRank := collector.GetBrowserRank(20)
-	osRank := collector.GetOSRank(20)
-	userAgentRank := collector.GetUserAgentRank(20)
+	browserCounts := make(map[string]int64)
+	osCounts := make(map[string]int64)
+	deviceTypeCounts := make(map[string]int64)
+
+	collector := GetLogCollector()
+	for _, item := range uaRanks {
+		ua := item.Name
+		if ua == "" {
+			continue
+		}
+		count := item.Count
+		browser := collector.ParseBrowser(ua)
+		os := collector.ParseOS(ua)
+		deviceType := collector.ParseDeviceType(ua)
+
+		browserCounts[browser] += count
+		osCounts[os] += count
+		deviceTypeCounts[deviceType] += count
+	}
+
+	// user_agent 排行（原始值）
+	uaResult := make([]map[string]interface{}, 0)
+	if len(uaRanks) > metricsRankLimit {
+		uaRanks = uaRanks[:metricsRankLimit]
+	}
+	var uaTotal int64
+	for _, item := range uaRanks {
+		uaTotal += item.Count
+	}
+	for _, item := range uaRanks {
+		percent := float64(0)
+		if uaTotal > 0 {
+			percent = float64(item.Count) / float64(uaTotal) * 100
+		}
+		uaResult = append(uaResult, map[string]interface{}{
+			"name":    item.Name,
+			"count":   item.Count,
+			"percent": percent,
+		})
+	}
 
 	return map[string]interface{}{
-		"deviceTypeRank": deviceTypeRank,
-		"browserRank":    browserRank,
-		"osRank":         osRank,
-		"userAgentRank":  userAgentRank,
+		"deviceTypeRank": countsToMetricsRankResponse(deviceTypeCounts, metricsRankLimit),
+		"browserRank":    countsToMetricsRankResponse(browserCounts, metricsRankLimit),
+		"osRank":         countsToMetricsRankResponse(osCounts, metricsRankLimit),
+		"userAgentRank":  uaResult,
 	}
+}
+
+// countsToMetricsRankResponse 将 map[string]int64 转为排名格式
+func countsToMetricsRankResponse(counts map[string]int64, limit int) []map[string]interface{} {
+	type entry struct {
+		name  string
+		count int64
+	}
+	entries := make([]entry, 0, len(counts))
+	for name, count := range counts {
+		entries = append(entries, entry{name: name, count: count})
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].count > entries[j].count
+	})
+
+	if limit > len(entries) {
+		limit = len(entries)
+	}
+
+	var total int64
+	for _, e := range entries {
+		total += e.count
+	}
+
+	result := make([]map[string]interface{}, 0, limit)
+	for i := 0; i < limit; i++ {
+		percent := float64(0)
+		if total > 0 {
+			percent = float64(entries[i].count) / float64(total) * 100
+		}
+		result = append(result, map[string]interface{}{
+			"name":    entries[i].name,
+			"count":   entries[i].count,
+			"percent": percent,
+		})
+	}
+	return result
 }
 
 func parseGranularity(granularity string) int64 {
