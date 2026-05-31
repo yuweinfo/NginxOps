@@ -126,6 +126,18 @@ func (s *SiteService) Update(id uint, dto *SiteDto) (*model.Site, error) {
 		return nil, fmt.Errorf("站点不存在")
 	}
 
+	// 如果提供了原始配置内容（"配置"按钮手动编辑模式）
+	if dto.Config != "" {
+		nginxSvc := NewNginxService()
+		if valid, errMsg := nginxSvc.ValidateConfig(dto.Config); !valid {
+			return nil, fmt.Errorf("Nginx 配置语法错误: %s", errMsg)
+		}
+		if err := s.writeRawConfigAndReload(site, dto.Config); err != nil {
+			return nil, err
+		}
+		return site, nil
+	}
+
 	// 保存原始值用于回滚
 	originalFileName := site.FileName
 	originalDomain := site.Domain
@@ -263,6 +275,10 @@ func (s *SiteService) GenerateConfig(id uint) (string, error) {
 	site, err := s.siteRepo.FindByID(id)
 	if err != nil {
 		return "", fmt.Errorf("站点不存在")
+	}
+	// 优先返回已保存的配置（可能包含手动编辑的内容）
+	if site.Config != "" {
+		return site.Config, nil
 	}
 	return s.buildNginxConfig(site), nil
 }
@@ -538,6 +554,36 @@ func (s *SiteService) writeConfigAndReload(site *model.Site) error {
 
 	// 保存配置到数据库
 	site.Config = nginxConfig
+	if err := s.siteRepo.Update(site); err != nil {
+		return err
+	}
+
+	// 重载Nginx
+	s.reloadNginx()
+	return nil
+}
+
+// writeRawConfigAndReload 将用户手动编辑的原始配置直接写入文件并重载 Nginx
+func (s *SiteService) writeRawConfigAndReload(site *model.Site, rawConfig string) error {
+	if !site.Enabled {
+		return nil
+	}
+
+	confDir := config.AppConfig.Nginx.ConfDir
+	confPath := filepath.Join(confDir, site.FileName)
+
+	if err := os.MkdirAll(filepath.Dir(confPath), 0755); err != nil {
+		return fmt.Errorf("创建目录失败: %v", err)
+	}
+
+	if err := os.WriteFile(confPath, []byte(rawConfig), 0644); err != nil {
+		return fmt.Errorf("写入配置文件失败: %v", err)
+	}
+
+	log.Printf("配置文件已写入(手动编辑): %s", confPath)
+
+	// 保存配置到数据库
+	site.Config = rawConfig
 	if err := s.siteRepo.Update(site); err != nil {
 		return err
 	}
