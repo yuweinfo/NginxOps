@@ -46,7 +46,8 @@ main:
             PLUGIN_GIT_EMAIL: "yuwei1228@hotmail.com"
             username: ${GITHUB_USERNAME}
             password: ${GITHUB_ACCESS_TOKEN}
-            sync_mode: rebase
+            sync_mode: push
+            force: true
         - name: sync-to-gitlab
           image: tencentcom/git-sync
           settings:
@@ -56,4 +57,5 @@ main:
             PLUGIN_GIT_EMAIL: "yuwei1228@hotmail.com"
             username: ${GITLAB_USERNAME}
             password: ${GITLAB_ACCESS_TOKEN}
-            sync_mode: rebase
+            sync_mode: push
+            force: true
